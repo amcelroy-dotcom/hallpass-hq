@@ -13,13 +13,19 @@
   .mono { font-family: 'Space Grotesk', system-ui, sans-serif; }
 
   /* ---- Top nav ---- */
-  header { position: sticky; top: 0; z-index: 20; background: #0A1B33; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 64px; }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand .dot { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-  .brand .name { font-weight: 700; font-size: 16px; }
-  nav { display: flex; gap: 4px; background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; }
-  nav button { padding: 9px 16px; border-radius: 9px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 13px; cursor: pointer; }
+  header { position: sticky; top: 0; z-index: 20; background: #0A1B33; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 60px; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .brand .dot { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .brand .name { font-weight: 700; font-size: 15px; white-space: nowrap; }
+  nav { display: flex; gap: 2px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 3px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { padding: 8px 12px; border-radius: 8px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 12.5px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
   nav button.active { background: rgba(255,255,255,0.08); color: #fff; }
+  @media (max-width: 480px) {
+    .brand .name { display: none; } /* icon alone is enough on very narrow phones — nav needs the room */
+    header { padding: 0 12px; height: 56px; }
+    nav button { padding: 8px 10px; font-size: 12px; }
+  }
   .attSubTab { padding: 8px 16px; border-radius: 8px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 13px; cursor: pointer; }
   .attSubTab.active { background: rgba(143,0,24,0.2); color: #fff; }
   #settingsBtn { width: 40px; height: 40px; border-radius: 999px; background: rgba(255,255,255,0.06); border: none; color: #C7CEE0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -33,14 +39,15 @@
   .modalCard input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; font-size: 13px; }
   .modalCard button.primary { margin-top: 20px; width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
 
-  main { max-width: 1000px; margin: 0 auto; padding: 24px 20px 60px; }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; }
   .view { display: none; }
   .view.active { display: block; }
 
   /* ---- Shared bits ---- */
-  .card { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 22px; }
+  .card { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 18px; }
   .grid2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
   @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { .card { padding: 14px; border-radius: 14px; } main { padding: 14px 10px 50px; } }
 
   #videoWrap { position: relative; width: 100%; aspect-ratio: 4/3; background: #061224; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
   video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -54,7 +61,7 @@
   @keyframes flashFade { from { opacity: 1; } to { opacity: 0; } }
 
   .pinBoxes { display: flex; gap: 8px; margin-top: 10px; }
-  .pinBoxes input { width: 15%; aspect-ratio: 1/1.15; text-align: center; font-size: 20px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; }
+  .pinBoxes input { flex: 1; min-width: 0; aspect-ratio: 1/1.15; text-align: center; font-size: 20px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; }
 
   .sectionLabel { font-size: 11px; font-weight: 700; color: #7C8AA8; letter-spacing: 0.04em; margin-bottom: 8px; }
   .whoRow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
@@ -83,12 +90,17 @@
   .pinGate input { width: 100%; max-width: 280px; padding: 14px; font-size: 20px; text-align: center; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; margin: 16px 0; }
   .pinGate button { max-width: 280px; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
 
-  .statRow { display: flex; gap: 12px; margin-bottom: 20px; }
-  .statBox { flex: 1; background: rgba(255,255,255,0.05); border-radius: 14px; padding: 14px; text-align: center; }
+  .statRow { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .statBox { flex: 1; min-width: 90px; background: rgba(255,255,255,0.05); border-radius: 14px; padding: 14px; text-align: center; }
   .statBox .n { font-size: 22px; font-weight: 700; }
   .statBox .l { font-size: 10px; color: #7C8AA8; font-weight: 700; }
   .notif { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
   .notif.unread { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.06); }
+  @media (max-width: 480px) {
+    .whoRow { flex-wrap: wrap; gap: 8px 12px; }
+    .whoRow .timer { margin-left: 0; }
+    nav { max-width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -108,8 +120,10 @@
 <div id="settingsPinGate" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;">
   <div class="modalCard">
     <h3>Admin PIN required</h3>
-    <input id="settingsPinInput" maxlength="10" inputmode="numeric" placeholder="Admin PIN" style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;font-size:16px;text-align:center;margin-bottom:10px;">
-    <button class="primary" id="settingsPinSubmit">Unlock Settings</button>
+    <div class="pinBoxes" id="pinBoxesSettingsGate" style="max-width:220px; margin:16px auto;">
+      <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+      <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+    </div>
     <div id="settingsPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;text-align:center;">Incorrect PIN.</div>
   </div>
 </div>
@@ -182,8 +196,10 @@
   <div class="view" id="view-attendance">
     <div id="attendanceGate" class="pinGate">
       <div style="font-size:18px;font-weight:700;">Staff PIN required</div>
-      <input id="attendancePinInput" maxlength="10" inputmode="numeric" placeholder="Staff PIN">
-      <button id="attendanceUnlockBtn">Unlock Attendance</button>
+      <div class="pinBoxes" id="pinBoxesAttGate" style="max-width:220px; margin:16px auto;">
+        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+      </div>
       <div id="attendancePinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
     </div>
     <div id="attendanceApp" style="display:none;">
@@ -278,8 +294,10 @@
   <div class="view" id="view-admin">
     <div id="adminGate" class="pinGate">
       <div style="font-size:18px;font-weight:700;">Admin PIN required</div>
-      <input id="adminPinInput" maxlength="10" inputmode="numeric" placeholder="Admin PIN">
-      <button id="adminUnlockBtn">Unlock Admin</button>
+      <div class="pinBoxes" id="pinBoxesAdminGate" style="max-width:220px; margin:16px auto;">
+        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+      </div>
       <div id="adminPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
     </div>
     <div id="adminApp" style="display:none;">
@@ -340,24 +358,20 @@ apiUrlInput.value = localStorage.getItem('hallpass_api_url') || DEFAULT_API_URL;
 apiKeyInput.value = localStorage.getItem('hallpass_api_key') || DEFAULT_API_KEY;
 
 document.getElementById('settingsBtn').addEventListener('click', () => {
-  document.getElementById('settingsPinInput').value = '';
+  settingsGateBoxes.clear();
   document.getElementById('settingsPinError').style.display = 'none';
   document.getElementById('settingsPinGate').style.display = 'flex';
-  document.getElementById('settingsPinInput').focus();
 });
-async function trySettingsPin() {
-  const pin = document.getElementById('settingsPinInput').value.trim();
-  if (!pin) return;
+const settingsGateBoxes = wirePinBoxes('pinBoxesSettingsGate', async (pin) => {
   const res = await apiGet('checkAdminPin', { pin });
   if (res.valid) {
     document.getElementById('settingsPinGate').style.display = 'none';
     document.getElementById('settingsModal').classList.add('show');
   } else {
     document.getElementById('settingsPinError').style.display = 'block';
+    settingsGateBoxes.clear();
   }
-}
-document.getElementById('settingsPinSubmit').addEventListener('click', trySettingsPin);
-document.getElementById('settingsPinInput').addEventListener('keydown', e => { if (e.key === 'Enter') trySettingsPin(); });
+});
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim());
   localStorage.setItem('hallpass_api_key', apiKeyInput.value.trim());
@@ -426,6 +440,32 @@ function showReject(big, sub) {
   document.getElementById('rejectSub').textContent = sub;
   document.getElementById('rejectOverlay').classList.add('show');
   setTimeout(() => document.getElementById('rejectOverlay').classList.remove('show'), 6000);
+}
+
+// Shared auto-advance PIN box wiring — every fixed-length PIN entry in the
+// app (kiosk lunch PIN, bag-check PIN, staff/admin/settings PINs) uses this
+// same pattern: type a digit, jump forward automatically; fill the last box
+// (or hit Enter) and it submits immediately, no separate button tap needed.
+function wirePinBoxes(containerId, onSubmit) {
+  const boxes = Array.from(document.querySelectorAll('#' + containerId + ' input'));
+  boxes.forEach((box, i) => {
+    box.addEventListener('input', () => {
+      box.value = box.value.replace(/[^0-9]/g, '');
+      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+      trySubmit();
+    });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
+      if (e.key === 'Enter') trySubmit(true);
+    });
+  });
+  function trySubmit(forced) {
+    const value = boxes.map(b => b.value).join('');
+    if (value.length === boxes.length || (forced && value.length === boxes.length)) {
+      onSubmit(value);
+    }
+  }
+  return { clear: () => { boxes.forEach(b => b.value = ''); boxes[0].focus(); }, focus: () => boxes[0].focus() };
 }
 
 function initials(name) {
@@ -726,14 +766,14 @@ setTimeout(refreshWhosOut, 1500);
 // ATTENDANCE
 // ============================================================
 let staffPin = '';
-document.getElementById('attendanceUnlockBtn').addEventListener('click', () => unlockAttendance(document.getElementById('attendancePinInput').value.trim()));
-document.getElementById('attendancePinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAttendance(document.getElementById('attendancePinInput').value.trim()); });
+const attGateBoxes = wirePinBoxes('pinBoxesAttGate', unlockAttendance);
 async function unlockAttendance(pin) {
   if (!pin) return;
   const res = await apiGet('getAttendanceToday', { pin });
   if (res.error) {
     document.getElementById('attendancePinError').style.display = 'block';
     localStorage.removeItem('hallpass_staff_pin'); // a stale/invalid saved PIN shouldn't keep silently failing on every reload
+    attGateBoxes.clear();
     return;
   }
   staffPin = pin;
@@ -963,14 +1003,14 @@ document.getElementById('tripRosterList').addEventListener('click', e => {
 // ADMIN
 // ============================================================
 let adminPin = '';
-document.getElementById('adminUnlockBtn').addEventListener('click', () => unlockAdmin(document.getElementById('adminPinInput').value.trim()));
-document.getElementById('adminPinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAdmin(document.getElementById('adminPinInput').value.trim()); });
+const adminGateBoxes = wirePinBoxes('pinBoxesAdminGate', unlockAdmin);
 async function unlockAdmin(pin) {
   if (!pin) return;
   const res = await apiGet('getAdminSummary', { pin });
   if (res.error) {
     document.getElementById('adminPinError').style.display = 'block';
     localStorage.removeItem('hallpass_admin_pin');
+    adminGateBoxes.clear();
     return;
   }
   adminPin = pin;
