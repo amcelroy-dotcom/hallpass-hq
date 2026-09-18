@@ -141,8 +141,7 @@
           <div style="font-size:10px; font-weight:700; color:#4ADE80; margin-bottom:4px;">SUGGESTED</div>
           <div id="suggestedName" style="font-weight:700;"></div>
           <div id="suggestedMeta" class="whoMeta" style="margin-top:2px;"></div>
-          <button id="acceptSuggested" style="margin-top:10px; padding:7px 14px; border-radius:8px; border:none; background:#4ADE80; color:#0A1B33; font-weight:700; font-size:12px; cursor:pointer;">Correct</button>
-          <button id="rejectSuggested" style="margin-top:10px; margin-left:6px; padding:7px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#C7CEE0; font-size:12px; cursor:pointer;">Not this</button>
+          <button id="changeLocationBtn" style="margin-top:10px; padding:7px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#C7CEE0; font-size:12px; cursor:pointer;">Change current location?</button>
         </div>
         <div id="manualPicker">
           <input id="teacherSearch" placeholder="Type a name or room #…">
@@ -279,10 +278,19 @@
 // ============================================================
 // Shared config + API helpers
 // ============================================================
+// ============================================================
+// Default connection settings — every device works out of the box with
+// these, no per-device setup required. The gear-icon settings modal still
+// exists purely as an override (testing against a different deployment,
+// temporarily pointing one device elsewhere) — it's optional, not required.
+// ============================================================
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycby6UkliXzehUyQAX7-rplpcMCNaYkN6LDzYfYcZKX5U6lahVsoUII39T7aQmo6TEL2Uog/exec';
+const DEFAULT_API_KEY = 'sany-hp-7x2m9qzb4k'; // <-- put your actual Script Properties API_KEY value here before deploying
+
 const apiUrlInput = document.getElementById('apiUrl');
 const apiKeyInput = document.getElementById('apiKey');
-apiUrlInput.value = localStorage.getItem('hallpass_api_url') || '';
-apiKeyInput.value = localStorage.getItem('hallpass_api_key') || '';
+apiUrlInput.value = localStorage.getItem('hallpass_api_url') || DEFAULT_API_URL;
+apiKeyInput.value = localStorage.getItem('hallpass_api_key') || DEFAULT_API_KEY;
 
 document.getElementById('settingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.add('show'));
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
@@ -453,14 +461,14 @@ function trySubmitKioskPin(forced) {
   }
 }
 
-async function identifyByName(text) { handleIdentifyResult(await apiGet('lookupByName', { name: text }), text); }
-async function identifyByPin(pin) { handleIdentifyResult(await apiGet('lookupByPin', { pin }), pin); }
+async function identifyByName(text) { handleIdentifyResult(await apiGet('identifyAndStatus', { name: text }), text); }
+async function identifyByPin(pin) { handleIdentifyResult(await apiGet('identifyAndStatus', { pin }), pin); }
 
 async function handleIdentifyResult(res, queried) {
   if (res.error) { flashCamStatus('Server said: ' + res.error); return; }
   if (!res.found) { flashCamStatus('No student found for that ' + (queried.length === 5 ? 'PIN' : 'badge')); return; }
   currentStudent = { name: res.name, pin: res.pin };
-  const status = await apiGet('getStudentStatus', { name: res.name });
+  const status = res.status;
 
   if (status.currentlyOut) {
     const signIn = await apiPost({ action: 'signIn', name: res.name });
@@ -486,31 +494,33 @@ async function openConfirmScreen(status) {
   document.getElementById('teacherSearch').value = '';
   document.getElementById('suggestedTeacher').style.display = 'none';
   document.getElementById('manualPicker').style.display = 'block';
-
-  if (teachers.length === 0) teachers = (await apiGet('getTeachers', {})).teachers || [];
-  renderTeacherList(teachers);
   renderReasons();
 
-  try {
-    const suggestion = await apiGet('getSuggestedTeacher', { name: currentStudent.name });
-    if (suggestion.confident) {
-      const match = teachers.find(t => t.displayName.toLowerCase().includes(suggestion.teacher.toLowerCase()));
-      document.getElementById('suggestedName').textContent = match ? match.displayName : suggestion.teacher;
-      document.getElementById('suggestedMeta').textContent = suggestion.class + ' · Day ' + suggestion.dayType;
-      document.getElementById('suggestedTeacher').style.display = 'block';
-      document.getElementById('manualPicker').style.display = 'none';
-      document.getElementById('acceptSuggested').onclick = () => {
-        selectedTeacher = match || { displayName: suggestion.teacher, room: '' };
-        updateConfirmEnabled();
-        document.getElementById('suggestedTeacher').style.display = 'none';
-        document.getElementById('manualPicker').style.display = 'block';
-      };
-      document.getElementById('rejectSuggested').onclick = () => {
-        document.getElementById('suggestedTeacher').style.display = 'none';
-        document.getElementById('manualPicker').style.display = 'block';
-      };
-    }
-  } catch (err) {}
+  // Teacher list and schedule suggestion don't depend on each other — run
+  // them concurrently instead of one-after-another to cut this screen's
+  // load time roughly in half.
+  const [teachersResult, suggestion] = await Promise.all([
+    teachers.length === 0 ? apiGet('getTeachers', {}) : Promise.resolve({ teachers }),
+    apiGet('getSuggestedTeacher', { name: currentStudent.name }).catch(() => ({ confident: false }))
+  ]);
+  teachers = teachersResult.teachers || teachers;
+  renderTeacherList(teachers);
+
+  if (suggestion.confident) {
+    const match = teachers.find(t => t.displayName.toLowerCase().includes(suggestion.teacher.toLowerCase()));
+    selectedTeacher = match || { displayName: suggestion.teacher, room: '' }; // assumed correct — no tap needed
+    updateConfirmEnabled();
+    document.getElementById('suggestedName').textContent = selectedTeacher.displayName;
+    document.getElementById('suggestedMeta').textContent = suggestion.class + ' · Day ' + suggestion.dayType;
+    document.getElementById('suggestedTeacher').style.display = 'block';
+    document.getElementById('manualPicker').style.display = 'none';
+    document.getElementById('changeLocationBtn').onclick = () => {
+      selectedTeacher = null;
+      updateConfirmEnabled();
+      document.getElementById('suggestedTeacher').style.display = 'none';
+      document.getElementById('manualPicker').style.display = 'block';
+    };
+  }
 }
 
 function renderTeacherList(list) {
