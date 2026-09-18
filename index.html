@@ -425,7 +425,12 @@ navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
 
 function tick() {
   if (video.readyState === video.HAVE_ENOUGH_DATA && Date.now() > cooldownUntil) {
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    // Downscale before decoding — jsQR doesn't need full camera resolution
+    // to read a QR code, and scanning a smaller image is dramatically
+    // faster per frame, which is what "slow scanning" actually was.
+    const maxDim = 480;
+    const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = video.videoWidth * scale; canvas.height = video.videoHeight * scale;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
@@ -613,7 +618,9 @@ function startAttCamera() {
 }
 function tickAtt() {
   if (videoAtt.readyState === videoAtt.HAVE_ENOUGH_DATA) {
-    canvasAtt.width = videoAtt.videoWidth; canvasAtt.height = videoAtt.videoHeight;
+    const maxDim = 480;
+    const scale = Math.min(1, maxDim / Math.max(videoAtt.videoWidth, videoAtt.videoHeight));
+    canvasAtt.width = videoAtt.videoWidth * scale; canvasAtt.height = videoAtt.videoHeight * scale;
     ctxAtt.drawImage(videoAtt, 0, 0, canvasAtt.width, canvasAtt.height);
     const imageData = ctxAtt.getImageData(0, 0, canvasAtt.width, canvasAtt.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
@@ -722,7 +729,9 @@ function startTripCamera() {
 }
 function tickTrip() {
   if (videoTrip.readyState === videoTrip.HAVE_ENOUGH_DATA && currentTripId && currentPhase) {
-    canvasTrip.width = videoTrip.videoWidth; canvasTrip.height = videoTrip.videoHeight;
+    const maxDim = 480;
+    const scale = Math.min(1, maxDim / Math.max(videoTrip.videoWidth, videoTrip.videoHeight));
+    canvasTrip.width = videoTrip.videoWidth * scale; canvasTrip.height = videoTrip.videoHeight * scale;
     ctxTrip.drawImage(videoTrip, 0, 0, canvasTrip.width, canvasTrip.height);
     const imageData = ctxTrip.getImageData(0, 0, canvasTrip.width, canvasTrip.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
