@@ -3,445 +3,758 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hall Pass — SANY</title>
+<title>SANY Hall Pass</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root { --accent: #8F0018; --navy: #0A1B33; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: 'Work Sans', system-ui, sans-serif;
-    background: var(--navy); color: #fff; min-height: 100vh;
-    display: flex; flex-direction: column; align-items: center;
-  }
+  body { margin: 0; font-family: 'Work Sans', system-ui, sans-serif; background: var(--navy); color: #fff; min-height: 100vh; }
   .mono { font-family: 'Space Grotesk', system-ui, sans-serif; }
 
-  /* ---- Config bar (dev-only, remove/hide for real deploy) ---- */
-  #apiConfig { width: 100%; max-width: 480px; padding: 10px 16px; }
-  #apiConfig input {
-    width: 100%; padding: 8px 10px; border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
-    color: #fff; font-size: 11px;
-  }
-  #apiConfig label { font-size: 10px; color: #7C8AA8; }
+  /* ---- Top nav ---- */
+  header { position: sticky; top: 0; z-index: 20; background: #0A1B33; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .dot { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+  .brand .name { font-weight: 700; font-size: 16px; }
+  nav { display: flex; gap: 4px; background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; }
+  nav button { padding: 9px 16px; border-radius: 9px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 13px; cursor: pointer; }
+  nav button.active { background: rgba(255,255,255,0.08); color: #fff; }
+  #settingsBtn { width: 40px; height: 40px; border-radius: 999px; background: rgba(255,255,255,0.06); border: none; color: #C7CEE0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-  /* ---- Header ---- */
-  header {
-    width: 100%; padding: 16px 20px; display: flex; align-items: center;
-    justify-content: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  header .title { font-size: 18px; font-weight: 700; }
+  /* ---- Settings modal ---- */
+  #settingsModal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+  #settingsModal.show { display: flex; }
+  .modalCard { background: #12233F; border-radius: 20px; padding: 28px; width: 100%; max-width: 420px; }
+  .modalCard h3 { margin: 0 0 16px; font-size: 17px; }
+  .modalCard label { font-size: 11px; color: #7C8AA8; font-weight: 700; display: block; margin-bottom: 4px; margin-top: 14px; }
+  .modalCard input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; font-size: 13px; }
+  .modalCard button.primary { margin-top: 20px; width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
 
-  /* ---- Screens ---- */
-  .screen { width: 100%; max-width: 480px; padding: 20px; display: none; flex-direction: column; align-items: center; }
-  .screen.active { display: flex; }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 20px 60px; }
+  .view { display: none; }
+  .view.active { display: block; }
 
-  /* Scan screen */
-  #videoWrap {
-    position: relative; width: 100%; aspect-ratio: 4/3; background: #061224;
-    border-radius: 16px; overflow: hidden; margin-bottom: 14px;
-  }
+  /* ---- Shared bits ---- */
+  .card { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 22px; }
+  .grid2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+
+  #videoWrap { position: relative; width: 100%; aspect-ratio: 4/3; background: #061224; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
   video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
   canvas { display: none; }
-  #status { padding: 8px 16px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.08); margin-bottom: 18px; }
-  #status.ok { background: rgba(34,197,94,0.18); color: #4ADE80; }
-  #status.err { background: rgba(239,68,68,0.18); color: #FF6B7F; }
-  .divider { margin: 8px 0 14px; color: #5B6A87; font-size: 13px; }
-  #pinBoxes { display: flex; gap: 8px; }
-  #pinBoxes input {
-    width: 15%; aspect-ratio: 1/1.15; text-align: center; font-size: 22px;
-    border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15);
-    background: rgba(255,255,255,0.05); color: #fff;
-  }
+  .statusPill { display: inline-block; padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.08); }
+  .statusPill.ok { background: rgba(34,197,94,0.18); color: #4ADE80; }
+  .statusPill.err { background: rgba(239,68,68,0.18); color: #FF6B7F; }
 
-  /* Identify/confirm screen */
-  #studentBanner {
-    width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 14px; padding: 16px; margin-bottom: 18px;
-  }
-  #studentBanner .name { font-size: 20px; font-weight: 700; }
-  #studentBanner .meta { font-size: 13px; color: #7C8AA8; margin-top: 2px; }
-  .sectionLabel { font-size: 12px; font-weight: 700; color: #7C8AA8; letter-spacing: 0.04em; align-self: flex-start; margin-bottom: 8px; }
-  #teacherSearch {
-    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
-    background: rgba(255,255,255,0.05); color: #fff; font-size: 15px; margin-bottom: 8px;
-  }
-  #teacherList { width: 100%; max-height: 160px; overflow-y: auto; margin-bottom: 18px; }
-  #teacherList .opt {
-    padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px;
-  }
-  #teacherList .opt:hover, #teacherList .opt.selected { background: rgba(255,255,255,0.08); }
-  #teacherList .opt.selected { border: 1px solid var(--accent); }
-  #reasonGrid { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
-  .reasonBtn {
-    padding: 14px 10px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.04); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
-  }
+  .pinBoxes { display: flex; gap: 8px; margin-top: 10px; }
+  .pinBoxes input { width: 15%; aspect-ratio: 1/1.15; text-align: center; font-size: 20px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; }
+
+  .sectionLabel { font-size: 11px; font-weight: 700; color: #7C8AA8; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .whoRow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
+  .whoRow.limitHit { background: rgba(143,0,24,0.08); border-color: rgba(143,0,24,0.4); }
+  .avatar { width: 36px; height: 36px; border-radius: 999px; background: #022C66; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .whoMeta { font-size: 12px; color: #7C8AA8; }
+  .timer { margin-left: auto; font-weight: 700; }
+
+  #teacherSearch, #tripSelect, #phaseSelect { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; font-size: 14px; margin-bottom: 8px; }
+  #teacherList { max-height: 160px; overflow-y: auto; margin-bottom: 16px; }
+  #teacherList .opt { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  #teacherList .opt:hover, #teacherList .opt.selected { background: rgba(255,255,255,0.08); border: 1px solid var(--accent); }
+  #reasonGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .reasonBtn { padding: 12px 10px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
   .reasonBtn.selected { border-color: var(--accent); background: rgba(143,0,24,0.18); }
-  #confirmBtn, #cancelBtn {
-    width: 100%; padding: 14px; border-radius: 12px; border: none; font-size: 15px; font-weight: 700; cursor: pointer;
-  }
-  #confirmBtn { background: var(--accent); color: #fff; margin-bottom: 8px; }
-  #confirmBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-  #cancelBtn { background: transparent; color: #7C8AA8; }
+  button.primaryBtn { width: 100%; padding: 13px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
+  button.primaryBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghostBtn { width: 100%; padding: 11px; border-radius: 10px; background: transparent; color: #7C8AA8; border: none; cursor: pointer; margin-top: 6px; }
 
-  /* Toast */
-  #toast {
-    position: fixed; right: 20px; bottom: 20px; width: min(390px, calc(100% - 40px));
-    background: #12233F; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px;
-    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
-    box-shadow: 0 16px 36px rgba(0,0,0,0.35); transform: translateY(140%); transition: transform 0.3s ease;
-  }
+  #toast { position: fixed; right: 20px; bottom: 20px; width: min(380px, calc(100% - 40px)); background: #12233F; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.35); transform: translateY(140%); transition: transform 0.3s ease; z-index: 90; }
   #toast.show { transform: translateY(0); }
-  #toast .icon { width: 40px; height: 40px; border-radius: 11px; background: rgba(74,222,128,0.14); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  #toast .name { font-weight: 700; font-size: 14px; }
-  #toast .meta { font-size: 12.5px; color: #7C8AA8; }
-
-  /* Reject overlay */
-  #rejectOverlay {
-    position: fixed; inset: 0; background: linear-gradient(180deg, #9E001D 0%, #6B0011 100%);
-    display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 50; text-align: center; padding: 20px;
-  }
+  #rejectOverlay { position: fixed; inset: 0; background: linear-gradient(180deg, #9E001D, #6B0011); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 95; text-align: center; padding: 20px; }
   #rejectOverlay.show { display: flex; }
-  #rejectOverlay .big { font-size: 40px; font-weight: 700; margin-bottom: 10px; }
-  #rejectOverlay .sub { font-size: 16px; color: #FFD8DD; }
-  #log { width: 100%; max-width: 480px; font-size: 10px; color: #5B6A87; white-space: pre-wrap; max-height: 100px; overflow-y: auto; padding: 8px 20px; }
+
+  .pinGate { text-align: center; padding: 60px 20px; }
+  .pinGate input { width: 100%; max-width: 280px; padding: 14px; font-size: 20px; text-align: center; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; margin: 16px 0; }
+  .pinGate button { max-width: 280px; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
+
+  .statRow { display: flex; gap: 12px; margin-bottom: 20px; }
+  .statBox { flex: 1; background: rgba(255,255,255,0.05); border-radius: 14px; padding: 14px; text-align: center; }
+  .statBox .n { font-size: 22px; font-weight: 700; }
+  .statBox .l { font-size: 10px; color: #7C8AA8; font-weight: 700; }
+  .notif { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+  .notif.unread { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.06); }
 </style>
 </head>
 <body>
 
-<div id="apiConfig">
-  <label for="apiUrl">Apps Script /exec URL:</label>
-  <input id="apiUrl" type="text" placeholder="https://script.google.com/.../exec">
-</div>
-
 <header>
-  <div class="title">SANY Hall Pass</div>
+  <div class="brand"><div class="dot mono">SH</div><div class="name">SANY Hall Pass</div></div>
+  <nav>
+    <button data-view="kiosk" class="active">Kiosk</button>
+    <button data-view="attendance">Attendance</button>
+    <button data-view="trips">Field Trips</button>
+    <button data-view="admin">Admin</button>
+  </nav>
+  <button id="settingsBtn" title="Settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04Z"/></svg>
+  </button>
 </header>
 
-<!-- SCREEN: scanning -->
-<div class="screen active" id="screenScan">
-  <div id="videoWrap">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-  </div>
-  <div id="status">Requesting camera…</div>
-  <div class="divider">— or type your 5-digit lunch PIN —</div>
-  <div id="pinBoxes">
-    <input maxlength="1" inputmode="numeric" data-i="0">
-    <input maxlength="1" inputmode="numeric" data-i="1">
-    <input maxlength="1" inputmode="numeric" data-i="2">
-    <input maxlength="1" inputmode="numeric" data-i="3">
-    <input maxlength="1" inputmode="numeric" data-i="4">
+<div id="settingsModal">
+  <div class="modalCard">
+    <h3>Connection settings</h3>
+    <label>Apps Script /exec URL</label>
+    <input id="apiUrl" placeholder="https://script.google.com/.../exec">
+    <label>API Key</label>
+    <input id="apiKey" placeholder="the shared key">
+    <button class="primary" id="saveSettingsBtn">Save</button>
   </div>
 </div>
 
-<!-- SCREEN: confirm sign-out -->
-<div class="screen" id="screenConfirm">
-  <div id="studentBanner">
-    <div class="name" id="bannerName"></div>
-    <div class="meta" id="bannerMeta"></div>
+<main>
+
+  <!-- ================= KIOSK ================= -->
+  <div class="view active" id="view-kiosk">
+    <div class="grid2">
+      <div class="card" id="kioskScanCard">
+        <div class="sectionLabel">SCAN OR TYPE PIN</div>
+        <div id="videoWrap">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="canvas"></canvas>
+        </div>
+        <span class="statusPill" id="camStatus">Requesting camera…</span>
+        <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
+        <div class="pinBoxes" id="pinBoxes">
+          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+          <input maxlength="1" inputmode="numeric">
+        </div>
+      </div>
+
+      <div class="card" id="kioskConfirmCard" style="display:none;">
+        <div id="studentBanner" style="margin-bottom:16px;">
+          <div id="bannerName" style="font-size:18px;font-weight:700;"></div>
+          <div id="bannerMeta" class="whoMeta"></div>
+        </div>
+        <div class="sectionLabel">Which teacher are you with?</div>
+        <div id="suggestedTeacher" style="display:none; margin-bottom:12px; padding:14px; border-radius:12px; background:rgba(74,222,128,0.1); border:1.5px solid rgba(74,222,128,0.4);">
+          <div style="font-size:10px; font-weight:700; color:#4ADE80; margin-bottom:4px;">SUGGESTED</div>
+          <div id="suggestedName" style="font-weight:700;"></div>
+          <div id="suggestedMeta" class="whoMeta" style="margin-top:2px;"></div>
+          <button id="acceptSuggested" style="margin-top:10px; padding:7px 14px; border-radius:8px; border:none; background:#4ADE80; color:#0A1B33; font-weight:700; font-size:12px; cursor:pointer;">Correct</button>
+          <button id="rejectSuggested" style="margin-top:10px; margin-left:6px; padding:7px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#C7CEE0; font-size:12px; cursor:pointer;">Not this</button>
+        </div>
+        <div id="manualPicker">
+          <input id="teacherSearch" placeholder="Type a name or room #…">
+          <div id="teacherList"></div>
+        </div>
+        <div class="sectionLabel">Reason</div>
+        <div id="reasonGrid"></div>
+        <button class="primaryBtn" id="confirmBtn" disabled>Sign Out</button>
+        <button class="ghostBtn" id="cancelBtn">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div class="sectionLabel" style="margin:0;">WHO'S OUT RIGHT NOW</div>
+        <input id="kioskTeacherFilter" placeholder="Filter to one teacher…" style="width:220px; padding:7px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:12px;">
+      </div>
+      <div id="kioskWhoRows"></div>
+      <div id="kioskWhoEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">Nobody's out right now.</div>
+    </div>
   </div>
-  <div class="sectionLabel">Which teacher are you with right now?</div>
-  <input id="teacherSearch" placeholder="Type a name or room number…">
-  <div id="teacherList"></div>
-  <div class="sectionLabel">Reason</div>
-  <div id="reasonGrid"></div>
-  <button id="confirmBtn" disabled>Sign Out</button>
-  <button id="cancelBtn">Cancel</button>
-</div>
+
+  <!-- ================= ATTENDANCE ================= -->
+  <div class="view" id="view-attendance">
+    <div id="attendanceGate" class="pinGate">
+      <div style="font-size:18px;font-weight:700;">Staff PIN required</div>
+      <input id="attendancePinInput" maxlength="10" inputmode="numeric" placeholder="Staff PIN">
+      <button id="attendanceUnlockBtn">Unlock Attendance</button>
+      <div id="attendancePinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
+    </div>
+    <div id="attendanceApp" style="display:none;">
+      <div class="statRow">
+        <div class="statBox"><div class="n mono" id="presentCount">0</div><div class="l">PRESENT</div></div>
+        <div class="statBox"><div class="n mono" id="tardyCount">0</div><div class="l">TARDY</div></div>
+      </div>
+      <div class="card">
+        <div id="videoWrapAtt" class="cardInner">
+          <div id="videoWrapAttInner" style="position:relative; width:100%; aspect-ratio:4/3; background:#061224; border-radius:16px; overflow:hidden; margin-bottom:14px;">
+            <video id="videoAtt" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
+            <canvas id="canvasAtt" style="display:none;"></canvas>
+          </div>
+        </div>
+        <span class="statusPill" id="camStatusAtt">Requesting camera…</span>
+        <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
+        <div class="pinBoxes" id="pinBoxesAtt">
+          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+          <input maxlength="1" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FIELD TRIPS ================= -->
+  <div class="view" id="view-trips">
+    <div id="tripsGate" class="pinGate">
+      <div style="font-size:18px;font-weight:700;">Staff PIN required</div>
+      <input id="tripsPinInput" maxlength="10" inputmode="numeric" placeholder="Staff PIN">
+      <button id="tripsUnlockBtn">Unlock Field Trips</button>
+      <div id="tripsPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
+    </div>
+    <div id="tripsApp" style="display:none;">
+      <div class="grid2">
+        <div class="card">
+          <div class="sectionLabel">CREATE A TRIP</div>
+          <input id="newTripName" placeholder="Trip name (e.g. 6th Grade Museum Trip)" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+          <input id="newTripDate" type="date" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+          <textarea id="newTripRoster" placeholder="Paste student names, one per line (Last, First)" rows="6" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;font-family:inherit;"></textarea>
+          <button class="primaryBtn" id="createTripBtn">Create Trip</button>
+        </div>
+        <div class="card">
+          <div class="sectionLabel">SCAN CHECK-IN</div>
+          <select id="tripSelect"><option value="">Choose a trip…</option></select>
+          <select id="phaseSelect"><option value="">Choose a phase…</option></select>
+          <div id="tripProgress" class="whoMeta" style="margin-bottom:10px;"></div>
+          <div id="videoWrapTripInner" style="position:relative; width:100%; aspect-ratio:4/3; background:#061224; border-radius:16px; overflow:hidden; margin-bottom:14px; display:none;">
+            <video id="videoTrip" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
+            <canvas id="canvasTrip" style="display:none;"></canvas>
+          </div>
+          <div id="tripRosterList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ADMIN ================= -->
+  <div class="view" id="view-admin">
+    <div id="adminGate" class="pinGate">
+      <div style="font-size:18px;font-weight:700;">Admin PIN required</div>
+      <input id="adminPinInput" maxlength="10" inputmode="numeric" placeholder="Admin PIN">
+      <button id="adminUnlockBtn">Unlock Admin</button>
+      <div id="adminPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
+    </div>
+    <div id="adminApp" style="display:none;">
+      <div class="statRow">
+        <div class="statBox"><div class="n mono" id="adminPassesToday">0</div><div class="l">PASSES TODAY</div></div>
+        <div class="statBox"><div class="n mono" id="adminOutNow">0</div><div class="l">OUT NOW</div></div>
+        <div class="statBox"><div class="n mono" id="adminAvgDuration">0</div><div class="l">AVG MIN</div></div>
+        <div class="statBox"><div class="n mono" id="adminDayType">—</div><div class="l">DAY TYPE</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="sectionLabel">FREQUENT FLYERS · LAST 7 DAYS</div>
+          <div id="frequentFlyersList"></div>
+        </div>
+        <div class="card">
+          <div class="sectionLabel">PATTERN FLAGS</div>
+          <div id="coOccurrenceList"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <div class="sectionLabel">NOTIFICATIONS</div>
+        <div id="notificationsList"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
 
 <div id="toast">
-  <div class="icon">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-  </div>
+  <div id="toastIcon" style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"></div>
   <div>
-    <div class="name mono" id="toastName"></div>
-    <div class="meta" id="toastMeta"></div>
+    <div class="mono" id="toastName" style="font-weight:700;font-size:14px;"></div>
+    <div id="toastMeta" class="whoMeta"></div>
   </div>
 </div>
 
 <div id="rejectOverlay">
-  <div class="big mono" id="rejectBig">Pass denied</div>
-  <div class="sub" id="rejectSub"></div>
+  <div class="mono" id="rejectBig" style="font-size:40px;font-weight:700;margin-bottom:10px;">Pass denied</div>
+  <div id="rejectSub" style="font-size:16px;color:#FFD8DD;"></div>
 </div>
 
-<div id="log"></div>
-
 <script>
-  // ---------- State ----------
-  let currentStudent = null;   // { name, pin }
-  let selectedTeacher = null;  // { displayName, room, email }
-  let selectedReason = null;
-  let teachers = [];
-  let cooldownUntil = 0;       // prevent re-triggering the same scan repeatedly
+// ============================================================
+// Shared config + API helpers
+// ============================================================
+const apiUrlInput = document.getElementById('apiUrl');
+const apiKeyInput = document.getElementById('apiKey');
+apiUrlInput.value = localStorage.getItem('hallpass_api_url') || '';
+apiKeyInput.value = localStorage.getItem('hallpass_api_key') || '';
 
-  const apiUrlInput = document.getElementById('apiUrl');
-  apiUrlInput.value = localStorage.getItem('hallpass_api_url') || '';
-  apiUrlInput.addEventListener('change', () => localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim()));
+document.getElementById('settingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.add('show'));
+document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+  localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim());
+  localStorage.setItem('hallpass_api_key', apiKeyInput.value.trim());
+  document.getElementById('settingsModal').classList.remove('show');
+});
 
-  function api() { return apiUrlInput.value.trim(); }
-  function log(msg) {
-    const el = document.getElementById('log');
-    el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent;
-  }
+function api() { return apiUrlInput.value.trim(); }
+function apiKey() { return apiKeyInput.value.trim(); }
 
-  function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-  }
+async function apiGet(action, params) {
+  const url = new URL(api());
+  url.searchParams.set('action', action);
+  url.searchParams.set('key', apiKey());
+  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString());
+  return res.json();
+}
+async function apiPost(body) {
+  const res = await fetch(api(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ key: apiKey() }, body))
+  });
+  return res.json();
+}
 
-  async function apiGet(action, params) {
-    if (!api()) { flashStatus('No Apps Script URL set — paste it in the box above.'); throw new Error('no_api_url'); }
-    try {
-      const url = new URL(api());
-      url.searchParams.set('action', action);
-      Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-      const res = await fetch(url.toString());
-      return await res.json();
-    } catch (err) {
-      log('API GET failed: ' + err.message);
-      flashStatus('Could not reach the server. Check the API URL above.');
-      throw err;
+function showToast(name, meta, ok) {
+  document.getElementById('toastName').textContent = name;
+  document.getElementById('toastMeta').textContent = meta;
+  const icon = document.getElementById('toastIcon');
+  icon.style.background = ok ? 'rgba(74,222,128,0.14)' : 'rgba(239,68,68,0.14)';
+  icon.innerHTML = ok
+    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
+    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+function showReject(big, sub) {
+  document.getElementById('rejectBig').textContent = big;
+  document.getElementById('rejectSub').textContent = sub;
+  document.getElementById('rejectOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('rejectOverlay').classList.remove('show'), 6000);
+}
+
+function initials(name) {
+  const parts = name.split(',').map(s => s.trim());
+  if (parts.length < 2) return name.slice(0, 2).toUpperCase();
+  return (parts[1][0] + parts[0][0]).toUpperCase();
+}
+function elapsed(iso) {
+  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+// ============================================================
+// Tab navigation
+// ============================================================
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    if (btn.dataset.view === 'trips') loadTripsList();
+    if (btn.dataset.view === 'admin' && adminPin) refreshAdmin();
+  });
+});
+
+// ============================================================
+// KIOSK
+// ============================================================
+let currentStudent = null, selectedTeacher = null, selectedReason = null, teachers = [];
+let cooldownUntil = 0;
+
+const REASONS = ['Bathroom', 'Drink', 'Nurse', 'Locker', 'Main Office', 'Behavior Specialist', 'Counselor', 'Other'];
+function renderReasons() {
+  const el = document.getElementById('reasonGrid');
+  el.innerHTML = '';
+  REASONS.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'reasonBtn'; btn.textContent = r;
+    btn.addEventListener('click', () => {
+      selectedReason = r;
+      document.querySelectorAll('.reasonBtn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      updateConfirmEnabled();
+    });
+    el.appendChild(btn);
+  });
+}
+function updateConfirmEnabled() {
+  document.getElementById('confirmBtn').disabled = !(selectedTeacher && selectedReason);
+}
+
+const video = document.getElementById('video'), canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const camStatus = document.getElementById('camStatus');
+let lastDecoded = '', lastDecodedAt = 0;
+
+navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  .then(stream => { video.srcObject = stream; camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok'; requestAnimationFrame(tick); })
+  .catch(err => { camStatus.textContent = 'Camera failed: ' + err.name; camStatus.className = 'statusPill err'; });
+
+function tick() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA && Date.now() > cooldownUntil) {
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      const now = Date.now();
+      if (code.data !== lastDecoded || now - lastDecodedAt > 3000) {
+        lastDecoded = code.data; lastDecodedAt = now;
+        identifyByName(code.data);
+      }
     }
   }
+  requestAnimationFrame(tick);
+}
 
-  async function apiPost(body) {
-    if (!api()) { flashStatus('No Apps Script URL set — paste it in the box above.'); throw new Error('no_api_url'); }
-    try {
-      const res = await fetch(api(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
-        body: JSON.stringify(body)
-      });
-      return await res.json();
-    } catch (err) {
-      log('API POST failed: ' + err.message);
-      flashStatus('Could not reach the server. Check the API URL above.');
-      throw err;
-    }
+const kioskBoxes = Array.from(document.querySelectorAll('#pinBoxes input'));
+kioskBoxes.forEach((box, i) => {
+  box.addEventListener('input', () => {
+    box.value = box.value.replace(/[^0-9]/g, '');
+    if (box.value && i < kioskBoxes.length - 1) kioskBoxes[i + 1].focus();
+    trySubmitKioskPin();
+  });
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !box.value && i > 0) kioskBoxes[i - 1].focus();
+    if (e.key === 'Enter') trySubmitKioskPin(true);
+  });
+});
+function trySubmitKioskPin(forced) {
+  const pin = kioskBoxes.map(b => b.value).join('');
+  if (pin.length === 5 || forced) {
+    if (pin.length !== 5) return;
+    identifyByPin(pin);
+    kioskBoxes.forEach(b => b.value = '');
   }
+}
 
-  // ---------- Camera scan loop ----------
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const statusEl = document.getElementById('status');
-  let lastDecoded = '', lastDecodedAt = 0;
+async function identifyByName(text) { handleIdentifyResult(await apiGet('lookupByName', { name: text }), text); }
+async function identifyByPin(pin) { handleIdentifyResult(await apiGet('lookupByPin', { pin }), pin); }
 
+async function handleIdentifyResult(res, queried) {
+  if (!res.found) { flashCamStatus('No student found for that ' + (queried.length === 5 ? 'PIN' : 'badge')); return; }
+  currentStudent = { name: res.name, pin: res.pin };
+  const status = await apiGet('getStudentStatus', { name: res.name });
+
+  if (status.currentlyOut) {
+    const signIn = await apiPost({ action: 'signIn', name: res.name });
+    if (signIn.success) { showToast(res.name + ' signed back in', signIn.durationMinutes + ' min · ' + status.remaining + ' remaining today', true); cooldown(); refreshWhosOut(); }
+    else flashCamStatus(signIn.error || 'Could not sign in.');
+    return;
+  }
+  openConfirmScreen(status);
+}
+function flashCamStatus(msg) {
+  camStatus.textContent = msg; camStatus.className = 'statusPill err';
+  setTimeout(() => { camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok'; }, 2500);
+}
+function cooldown() { cooldownUntil = Date.now() + 2000; }
+
+async function openConfirmScreen(status) {
+  document.getElementById('kioskScanCard').style.display = 'none';
+  document.getElementById('kioskConfirmCard').style.display = 'block';
+  document.getElementById('bannerName').textContent = currentStudent.name;
+  document.getElementById('bannerMeta').textContent = status.usedToday + ' of ' + status.limit + ' passes used today · ' + status.remaining + ' remaining';
+  selectedTeacher = null; selectedReason = null;
+  document.getElementById('confirmBtn').disabled = true;
+  document.getElementById('teacherSearch').value = '';
+  document.getElementById('suggestedTeacher').style.display = 'none';
+  document.getElementById('manualPicker').style.display = 'block';
+
+  if (teachers.length === 0) teachers = (await apiGet('getTeachers', {})).teachers || [];
+  renderTeacherList(teachers);
+  renderReasons();
+
+  try {
+    const suggestion = await apiGet('getSuggestedTeacher', { name: currentStudent.name });
+    if (suggestion.confident) {
+      const match = teachers.find(t => t.displayName.toLowerCase().includes(suggestion.teacher.toLowerCase()));
+      document.getElementById('suggestedName').textContent = match ? match.displayName : suggestion.teacher;
+      document.getElementById('suggestedMeta').textContent = suggestion.class + ' · Day ' + suggestion.dayType;
+      document.getElementById('suggestedTeacher').style.display = 'block';
+      document.getElementById('manualPicker').style.display = 'none';
+      document.getElementById('acceptSuggested').onclick = () => {
+        selectedTeacher = match || { displayName: suggestion.teacher, room: '' };
+        updateConfirmEnabled();
+        document.getElementById('suggestedTeacher').style.display = 'none';
+        document.getElementById('manualPicker').style.display = 'block';
+      };
+      document.getElementById('rejectSuggested').onclick = () => {
+        document.getElementById('suggestedTeacher').style.display = 'none';
+        document.getElementById('manualPicker').style.display = 'block';
+      };
+    }
+  } catch (err) {}
+}
+
+function renderTeacherList(list) {
+  const el = document.getElementById('teacherList');
+  el.innerHTML = '';
+  list.slice(0, 30).forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'opt';
+    div.textContent = t.displayName + (t.room ? ' — Rm ' + t.room : '');
+    div.addEventListener('click', () => {
+      selectedTeacher = t;
+      document.querySelectorAll('#teacherList .opt').forEach(o => o.classList.remove('selected'));
+      div.classList.add('selected');
+      updateConfirmEnabled();
+    });
+    el.appendChild(div);
+  });
+}
+document.getElementById('teacherSearch').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  renderTeacherList(q ? teachers.filter(t => t.displayName.toLowerCase().includes(q) || String(t.room).toLowerCase().includes(q)) : teachers);
+});
+document.getElementById('cancelBtn').addEventListener('click', () => {
+  currentStudent = null;
+  document.getElementById('kioskConfirmCard').style.display = 'none';
+  document.getElementById('kioskScanCard').style.display = 'block';
+});
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+  document.getElementById('confirmBtn').disabled = true;
+  const res = await apiPost({ action: 'signOut', name: currentStudent.name, teacher: selectedTeacher.displayName, room: selectedTeacher.room, reason: selectedReason });
+  document.getElementById('kioskConfirmCard').style.display = 'none';
+  document.getElementById('kioskScanCard').style.display = 'block';
+  if (res.success) { showToast(currentStudent.name + ' signed out', selectedReason + ' · ' + res.remaining + ' remaining today', true); cooldown(); refreshWhosOut(); }
+  else if (res.reasonCode === 'limit_reached') showReject('Pass denied', currentStudent.name + ' has used all ' + res.limit + ' hall passes allowed for today.');
+  else if (res.reasonCode === 'already_out') showReject('Already out', currentStudent.name + ' already has an open pass.');
+  else showReject('Something went wrong', res.error || 'Please try again or ask a teacher for help.');
+});
+
+// ---- Who's out, embedded in the kiosk ----
+const kioskFilter = document.getElementById('kioskTeacherFilter');
+kioskFilter.value = localStorage.getItem('hallpass_kiosk_whoout_filter') || '';
+kioskFilter.addEventListener('change', () => { localStorage.setItem('hallpass_kiosk_whoout_filter', kioskFilter.value.trim()); refreshWhosOut(); });
+
+async function refreshWhosOut() {
+  if (!api() || !apiKey()) return;
+  const params = {}; const t = kioskFilter.value.trim(); if (t) params.teacher = t;
+  const data = await apiGet('getWhosOutNow', params);
+  const rowsEl = document.getElementById('kioskWhoRows'), emptyEl = document.getElementById('kioskWhoEmpty');
+  if (!data.students || data.students.length === 0) { rowsEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+  emptyEl.style.display = 'none';
+  rowsEl.innerHTML = data.students.map(s => {
+    const atLimit = s.usedToday >= s.limit;
+    return `<div class="whoRow ${atLimit ? 'limitHit' : ''}">
+      <div class="avatar mono">${initials(s.name)}</div>
+      <div><div style="font-weight:700;">${s.name}</div><div class="whoMeta">Rm ${s.room || '—'} · ${s.teacher} · ${s.reason}</div></div>
+      <div class="timer mono" data-start="${s.timeOutIso}">${elapsed(s.timeOutIso)}</div>
+    </div>`;
+  }).join('');
+}
+setInterval(() => { document.querySelectorAll('.timer[data-start]').forEach(el => el.textContent = elapsed(el.getAttribute('data-start'))); }, 1000);
+setInterval(refreshWhosOut, 15000);
+setTimeout(refreshWhosOut, 1500);
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+let staffPin = '';
+document.getElementById('attendanceUnlockBtn').addEventListener('click', async () => {
+  const pin = document.getElementById('attendancePinInput').value.trim();
+  if (!pin) return;
+  const res = await apiGet('getAttendanceToday', { pin });
+  if (res.error) { document.getElementById('attendancePinError').style.display = 'block'; return; }
+  staffPin = pin;
+  document.getElementById('attendanceGate').style.display = 'none';
+  document.getElementById('attendanceApp').style.display = 'block';
+  renderAttStats(res);
+  startAttCamera();
+  setInterval(refreshAttStats, 20000);
+});
+function renderAttStats(d) { document.getElementById('presentCount').textContent = d.presentCount || 0; document.getElementById('tardyCount').textContent = d.tardyCount || 0; }
+async function refreshAttStats() { const res = await apiGet('getAttendanceToday', { pin: staffPin }); if (!res.error) renderAttStats(res); }
+
+const videoAtt = document.getElementById('videoAtt'), canvasAtt = document.getElementById('canvasAtt');
+const ctxAtt = canvasAtt.getContext('2d', { willReadFrequently: true });
+let lastDecodedAtt = '', lastDecodedAttAt = 0;
+function startAttCamera() {
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(stream => {
-      video.srcObject = stream;
-      statusEl.textContent = 'Camera ready — scanning continuously';
-      statusEl.className = 'ok';
-      requestAnimationFrame(tick);
-    })
-    .catch(err => {
-      statusEl.textContent = 'Camera failed: ' + err.name;
-      statusEl.className = 'err';
-      log('getUserMedia error: ' + err.message);
-    });
-
-  function tick() {
-    if (video.readyState === video.HAVE_ENOUGH_DATA && Date.now() > cooldownUntil) {
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-      if (code && code.data) {
-        const now = Date.now();
-        if (code.data !== lastDecoded || now - lastDecodedAt > 3000) {
-          lastDecoded = code.data; lastDecodedAt = now;
-          identifyByName(code.data);
-        }
-      }
-    }
-    requestAnimationFrame(tick);
-  }
-
-  // ---------- PIN entry ----------
-  const boxes = Array.from(document.querySelectorAll('#pinBoxes input'));
-  boxes.forEach((box, i) => {
-    box.addEventListener('input', () => {
-      box.value = box.value.replace(/[^0-9]/g, '');
-      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
-      trySubmitPin();
-    });
-    box.addEventListener('keydown', e => {
-      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
-      if (e.key === 'Enter') trySubmitPin(true);
-    });
-  });
-
-  function trySubmitPin(forced) {
-    const pin = boxes.map(b => b.value).join('');
-    if (pin.length === 5 || forced) {
-      if (pin.length !== 5) return;
-      identifyByPin(pin);
-      boxes.forEach(b => b.value = '');
+    .then(stream => { videoAtt.srcObject = stream; document.getElementById('camStatusAtt').textContent = 'Camera ready'; document.getElementById('camStatusAtt').className = 'statusPill ok'; requestAnimationFrame(tickAtt); })
+    .catch(err => { document.getElementById('camStatusAtt').textContent = 'Camera failed: ' + err.name; document.getElementById('camStatusAtt').className = 'statusPill err'; });
+}
+function tickAtt() {
+  if (videoAtt.readyState === videoAtt.HAVE_ENOUGH_DATA) {
+    canvasAtt.width = videoAtt.videoWidth; canvasAtt.height = videoAtt.videoHeight;
+    ctxAtt.drawImage(videoAtt, 0, 0, canvasAtt.width, canvasAtt.height);
+    const imageData = ctxAtt.getImageData(0, 0, canvasAtt.width, canvasAtt.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      const now = Date.now();
+      if (code.data !== lastDecodedAtt || now - lastDecodedAttAt > 3000) { lastDecodedAtt = code.data; lastDecodedAttAt = now; handleAttendanceName(code.data); }
     }
   }
-
-  // ---------- Identify student, then route to sign-in or the confirm screen ----------
-  async function identifyByName(text) {
-    log('QR decoded: "' + text + '"');
-    const res = await apiGet('lookupByName', { name: text });
-    handleIdentifyResult(res, text);
+  requestAnimationFrame(tickAtt);
+}
+async function handleAttendanceName(name) {
+  const res = await apiPost({ action: 'checkInAttendance', pin: staffPin, name });
+  if (res.success) { showToast(res.name, res.status + ' · checked in', true); refreshAttStats(); }
+  else showToast('Not checked in', res.error || 'Unknown error', false);
+}
+const attBoxes = Array.from(document.querySelectorAll('#pinBoxesAtt input'));
+attBoxes.forEach((box, i) => {
+  box.addEventListener('input', () => { box.value = box.value.replace(/[^0-9]/g, ''); if (box.value && i < attBoxes.length - 1) attBoxes[i + 1].focus(); trySubmitAttPin(); });
+  box.addEventListener('keydown', e => { if (e.key === 'Backspace' && !box.value && i > 0) attBoxes[i - 1].focus(); if (e.key === 'Enter') trySubmitAttPin(true); });
+});
+async function trySubmitAttPin(forced) {
+  const pin = attBoxes.map(b => b.value).join('');
+  if (pin.length === 5 || forced) {
+    if (pin.length !== 5) return;
+    const lookup = await apiGet('lookupByPin', { pin });
+    if (lookup.found) handleAttendanceName(lookup.name); else showToast('No match', 'PIN: ' + pin, false);
+    attBoxes.forEach(b => b.value = '');
   }
-  async function identifyByPin(pin) {
-    log('PIN submitted: ' + pin);
-    const res = await apiGet('lookupByPin', { pin: pin });
-    handleIdentifyResult(res, pin);
-  }
+}
 
-  async function handleIdentifyResult(res, queried) {
-    if (!res.found) {
-      log('No match for "' + queried + '"');
-      flashStatus('No student found for that ' + (queried.length === 5 ? 'PIN' : 'badge'));
-      return;
+// ============================================================
+// FIELD TRIPS
+// ============================================================
+let tripsPin = '', currentTripId = '', currentPhase = '';
+document.getElementById('tripsUnlockBtn').addEventListener('click', async () => {
+  const pin = document.getElementById('tripsPinInput').value.trim();
+  if (!pin) return;
+  const res = await apiGet('getFieldTrips', { pin });
+  if (res.error) { document.getElementById('tripsPinError').style.display = 'block'; return; }
+  tripsPin = pin;
+  document.getElementById('tripsGate').style.display = 'none';
+  document.getElementById('tripsApp').style.display = 'block';
+  loadTripsList();
+  loadPhases();
+});
+
+async function loadPhases() {
+  const res = await apiGet('getFieldTripPhases', {});
+  const sel = document.getElementById('phaseSelect');
+  sel.innerHTML = '<option value="">Choose a phase…</option>' + (res.phases || []).map(p => `<option value="${p}">${p}</option>`).join('');
+}
+
+async function loadTripsList() {
+  if (!tripsPin) return;
+  const res = await apiGet('getFieldTrips', { pin: tripsPin });
+  const sel = document.getElementById('tripSelect');
+  sel.innerHTML = '<option value="">Choose a trip…</option>' + (res.trips || []).map(t => `<option value="${t.tripId}">${t.name} (${t.date})</option>`).join('');
+}
+
+document.getElementById('createTripBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newTripName').value.trim();
+  const date = document.getElementById('newTripDate').value;
+  const roster = document.getElementById('newTripRoster').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!name || !date || roster.length === 0) { showToast('Missing info', 'Name, date, and at least one student are required.', false); return; }
+  const res = await apiPost({ action: 'createFieldTrip', pin: tripsPin, name, date, roster, createdBy: 'kiosk' });
+  if (res.success) {
+    showToast('Trip created', name, true);
+    document.getElementById('newTripName').value = ''; document.getElementById('newTripDate').value = ''; document.getElementById('newTripRoster').value = '';
+    loadTripsList();
+  }
+});
+
+async function loadTripRoster() {
+  if (!currentTripId || !currentPhase) { document.getElementById('tripRosterList').innerHTML = ''; document.getElementById('tripProgress').textContent = ''; return; }
+  const res = await apiGet('getFieldTripRoster', { pin: tripsPin, tripId: currentTripId, phase: currentPhase });
+  if (res.error) return;
+  document.getElementById('tripProgress').textContent = res.scannedCount + ' of ' + res.totalCount + ' scanned for this phase';
+  document.getElementById('tripRosterList').innerHTML = res.roster.map(s => `
+    <div class="whoRow ${s.scanned ? '' : ''}" style="${s.scanned ? 'opacity:0.5;' : ''}">
+      <div class="avatar mono" style="background:${s.scanned ? '#022C66' : '#8F0018'};">${initials(s.name)}</div>
+      <div style="flex:1;">${s.name}</div>
+      <div class="whoMeta">${s.scanned ? '✓ Scanned' : 'Not yet'}</div>
+    </div>`).join('');
+}
+document.getElementById('tripSelect').addEventListener('change', e => { currentTripId = e.target.value; toggleTripCamera(); loadTripRoster(); });
+document.getElementById('phaseSelect').addEventListener('change', e => { currentPhase = e.target.value; toggleTripCamera(); loadTripRoster(); });
+
+let tripCameraStarted = false;
+function toggleTripCamera() {
+  const wrap = document.getElementById('videoWrapTripInner');
+  if (currentTripId && currentPhase) {
+    wrap.style.display = 'block';
+    if (!tripCameraStarted) startTripCamera();
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+const videoTrip = document.getElementById('videoTrip'), canvasTrip = document.getElementById('canvasTrip');
+const ctxTrip = canvasTrip.getContext('2d', { willReadFrequently: true });
+let lastDecodedTrip = '', lastDecodedTripAt = 0;
+function startTripCamera() {
+  tripCameraStarted = true;
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(stream => { videoTrip.srcObject = stream; requestAnimationFrame(tickTrip); })
+    .catch(err => showToast('Camera failed', err.name, false));
+}
+function tickTrip() {
+  if (videoTrip.readyState === videoTrip.HAVE_ENOUGH_DATA && currentTripId && currentPhase) {
+    canvasTrip.width = videoTrip.videoWidth; canvasTrip.height = videoTrip.videoHeight;
+    ctxTrip.drawImage(videoTrip, 0, 0, canvasTrip.width, canvasTrip.height);
+    const imageData = ctxTrip.getImageData(0, 0, canvasTrip.width, canvasTrip.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      const now = Date.now();
+      if (code.data !== lastDecodedTrip || now - lastDecodedTripAt > 3000) { lastDecodedTrip = code.data; lastDecodedTripAt = now; handleTripScan(code.data); }
     }
-    currentStudent = { name: res.name, pin: res.pin };
-    const status = await apiGet('getStudentStatus', { name: res.name });
-
-    if (status.currentlyOut) {
-      // Second tap = sign back in, no picker needed
-      const signIn = await apiPost({ action: 'signIn', name: res.name });
-      if (signIn.success) {
-        showToast(res.name + ' signed back in', signIn.durationMinutes + ' min pass · ' + status.remaining + ' remaining today');
-        cooldown();
-      } else {
-        flashStatus(signIn.error || 'Could not sign in.');
-      }
-      return;
-    }
-
-    openConfirmScreen(status);
   }
+  requestAnimationFrame(tickTrip);
+}
+async function handleTripScan(name) {
+  const res = await apiPost({ action: 'recordFieldTripScan', pin: tripsPin, tripId: currentTripId, name, phase: currentPhase });
+  if (res.success) { showToast(res.name, 'Scanned: ' + currentPhase, true); loadTripRoster(); }
+  else showToast('Not scanned', res.error || 'Unknown error', false);
+}
+// Tap-to-scan fallback for roster rows (useful if a student's badge is hard to scan mid-trip)
+document.getElementById('tripRosterList').addEventListener('click', e => {
+  const row = e.target.closest('.whoRow');
+  if (!row || !currentTripId || !currentPhase) return;
+  const name = row.children[1].textContent;
+  handleTripScan(name);
+});
 
-  function flashStatus(msg) {
-    statusEl.textContent = msg;
-    statusEl.className = 'err';
-    setTimeout(() => { statusEl.textContent = 'Camera ready — scanning continuously'; statusEl.className = 'ok'; }, 2500);
-  }
-
-  function cooldown() {
-    cooldownUntil = Date.now() + 2000;
-  }
-
-  // ---------- Confirm screen: teacher picker + reason ----------
-  async function openConfirmScreen(status) {
-    document.getElementById('bannerName').textContent = currentStudent.name;
-    document.getElementById('bannerMeta').textContent =
-      status.usedToday + ' of ' + status.limit + ' passes used today · ' + status.remaining + ' remaining';
-
-    selectedTeacher = null;
-    selectedReason = null;
-    document.getElementById('confirmBtn').disabled = true;
-    document.getElementById('teacherSearch').value = '';
-
-    if (teachers.length === 0) {
-      const t = await apiGet('getTeachers', {});
-      teachers = t.teachers || [];
-    }
-    renderTeacherList(teachers);
-    renderReasons();
-    showScreen('screenConfirm');
-  }
-
-  function renderTeacherList(list) {
-    const el = document.getElementById('teacherList');
-    el.innerHTML = '';
-    list.slice(0, 30).forEach(t => {
-      const div = document.createElement('div');
-      div.className = 'opt';
-      div.textContent = t.displayName + (t.room ? ' — Rm ' + t.room : '');
-      div.addEventListener('click', () => {
-        selectedTeacher = t;
-        document.querySelectorAll('#teacherList .opt').forEach(o => o.classList.remove('selected'));
-        div.classList.add('selected');
-        updateConfirmEnabled();
-      });
-      el.appendChild(div);
-    });
-  }
-
-  document.getElementById('teacherSearch').addEventListener('input', (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    const filtered = q
-      ? teachers.filter(t => t.displayName.toLowerCase().includes(q) || String(t.room).toLowerCase().includes(q))
-      : teachers;
-    renderTeacherList(filtered);
-  });
-
-  const REASONS = ['Bathroom', 'Drink', 'Nurse', 'Locker', 'Main Office', 'Behavior Specialist', 'Counselor', 'Other'];
-  function renderReasons() {
-    const el = document.getElementById('reasonGrid');
-    el.innerHTML = '';
-    REASONS.forEach(r => {
-      const btn = document.createElement('button');
-      btn.className = 'reasonBtn';
-      btn.textContent = r;
-      btn.addEventListener('click', () => {
-        selectedReason = r;
-        document.querySelectorAll('.reasonBtn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        updateConfirmEnabled();
-      });
-      el.appendChild(btn);
-    });
-  }
-
-  function updateConfirmEnabled() {
-    document.getElementById('confirmBtn').disabled = !(selectedTeacher && selectedReason);
-  }
-
-  document.getElementById('cancelBtn').addEventListener('click', () => {
-    currentStudent = null;
-    showScreen('screenScan');
-  });
-
-  document.getElementById('confirmBtn').addEventListener('click', async () => {
-    document.getElementById('confirmBtn').disabled = true;
-    const res = await apiPost({
-      action: 'signOut',
-      name: currentStudent.name,
-      teacher: selectedTeacher.displayName,
-      room: selectedTeacher.room,
-      reason: selectedReason
-    });
-
-    if (res.success) {
-      showToast(currentStudent.name + ' signed out', selectedReason + ' · ' + res.remaining + ' passes remaining today');
-      showScreen('screenScan');
-      cooldown();
-    } else if (res.reasonCode === 'limit_reached') {
-      showReject('Pass denied', currentStudent.name + ' has used all ' + res.limit + ' hall passes allowed for today.');
-    } else if (res.reasonCode === 'already_out') {
-      showReject('Already out', currentStudent.name + ' already has an open pass.');
-    } else {
-      showReject('Something went wrong', res.error || 'Please try again or ask a teacher for help.');
-    }
-  });
-
-  // ---------- Toast / reject ----------
-  function showToast(name, meta) {
-    document.getElementById('toastName').textContent = name;
-    document.getElementById('toastMeta').textContent = meta;
-    const t = document.getElementById('toast');
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 4000);
-  }
-
-  function showReject(big, sub) {
-    document.getElementById('rejectBig').textContent = big;
-    document.getElementById('rejectSub').textContent = sub;
-    document.getElementById('rejectOverlay').classList.add('show');
-    setTimeout(() => {
-      document.getElementById('rejectOverlay').classList.remove('show');
-      showScreen('screenScan');
-      cooldown();
-    }, 6000);
-  }
+// ============================================================
+// ADMIN
+// ============================================================
+let adminPin = '';
+document.getElementById('adminUnlockBtn').addEventListener('click', async () => {
+  const pin = document.getElementById('adminPinInput').value.trim();
+  if (!pin) return;
+  const res = await apiGet('getAdminSummary', { pin });
+  if (res.error) { document.getElementById('adminPinError').style.display = 'block'; return; }
+  adminPin = pin;
+  document.getElementById('adminGate').style.display = 'none';
+  document.getElementById('adminApp').style.display = 'block';
+  renderAdminSummary(res);
+  refreshAdmin();
+});
+function renderAdminSummary(d) {
+  document.getElementById('adminPassesToday').textContent = d.passesToday || 0;
+  document.getElementById('adminOutNow').textContent = d.currentlyOut || 0;
+  document.getElementById('adminAvgDuration').textContent = d.avgDurationMin || 0;
+  document.getElementById('adminDayType').textContent = d.dayType || '—';
+}
+async function refreshAdmin() {
+  if (!adminPin) return;
+  const [summary, flyers, flags, notifs] = await Promise.all([
+    apiGet('getAdminSummary', { pin: adminPin }),
+    apiGet('getFrequentFlyers', { pin: adminPin }),
+    apiGet('getCoOccurrenceFlags', { pin: adminPin }),
+    apiGet('getNotifications', { pin: adminPin })
+  ]);
+  renderAdminSummary(summary);
+  document.getElementById('frequentFlyersList').innerHTML = (flyers.students || []).map(s =>
+    `<div class="whoRow"><div style="flex:1;">${s.name}</div><div class="whoMeta mono">${s.passCount} passes</div></div>`).join('') || '<div class="whoMeta">No data yet.</div>';
+  document.getElementById('coOccurrenceList').innerHTML = (flags.flags || []).map(f =>
+    `<div class="whoRow"><div style="flex:1;">${f.pair[0]} &amp; ${f.pair[1]}</div><div class="whoMeta mono">${f.count}×</div></div>`).join('') || '<div class="whoMeta">No flags.</div>';
+  document.getElementById('notificationsList').innerHTML = (notifs.notifications || []).slice(0, 20).map(n => `
+    <div class="notif ${n.status === 'unread' ? 'unread' : ''}">
+      <div style="font-weight:700; font-size:13px;">${n.title}</div>
+      <div class="whoMeta" style="margin:4px 0 8px;">${n.detail}</div>
+      ${n.status === 'unread' ? `<button class="ghostBtn ackBtn" data-id="${n.id}" style="width:auto;display:inline-block;background:rgba(255,255,255,0.08);color:#fff;padding:6px 12px;border-radius:8px;">Acknowledge</button>` : `<span class="whoMeta">${n.status}</span>`}
+    </div>`).join('') || '<div class="whoMeta">Nothing yet.</div>';
+  document.querySelectorAll('.ackBtn').forEach(btn => btn.addEventListener('click', async () => {
+    await apiPost({ action: 'acknowledgeNotification', pin: adminPin, id: btn.dataset.id });
+    refreshAdmin();
+  }));
+}
 </script>
 </body>
 </html>
