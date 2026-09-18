@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance Check-In — SANY</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --accent: #8F0018; --navy: #0A1B33; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Work Sans', system-ui, sans-serif; background: var(--navy); color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .mono { font-family: 'Space Grotesk', system-ui, sans-serif; }
+  #apiConfig { width: 100%; max-width: 480px; padding: 10px 16px; }
+  #apiConfig input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; font-size: 11px; margin-bottom: 4px; }
+  #apiConfig label { font-size: 10px; color: #7C8AA8; }
+  #pinGate { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; width: 100%; max-width: 400px; }
+  #pinGate input { width: 100%; padding: 14px; font-size: 20px; text-align: center; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; margin-bottom: 12px; }
+  #pinGate button { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+  #pinError { color: #FF6B7F; font-size: 13px; margin-top: 8px; display: none; }
+  #app { display: none; width: 100%; max-width: 480px; padding: 20px; flex-direction: column; align-items: center; }
+  header { text-align: center; margin-bottom: 16px; }
+  header .title { font-size: 20px; font-weight: 700; }
+  #stats { display: flex; gap: 12px; width: 100%; margin-bottom: 20px; }
+  .stat { flex: 1; background: rgba(255,255,255,0.05); border-radius: 14px; padding: 14px; text-align: center; }
+  .stat .n { font-size: 22px; font-weight: 700; }
+  .stat .l { font-size: 10px; color: #7C8AA8; font-weight: 700; letter-spacing: 0.04em; }
+  #videoWrap { position: relative; width: 100%; aspect-ratio: 4/3; background: #061224; border-radius: 16px; overflow: hidden; margin-bottom: 14px; }
+  video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  canvas { display: none; }
+  #status { padding: 8px 16px; border-radius: 999px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.08); margin-bottom: 18px; }
+  #status.ok { background: rgba(34,197,94,0.18); color: #4ADE80; }
+  #status.err { background: rgba(239,68,68,0.18); color: #FF6B7F; }
+  #pinBoxes { display: flex; gap: 8px; margin-top: 10px; }
+  #pinBoxes input { width: 15%; aspect-ratio: 1/1.15; text-align: center; font-size: 22px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; }
+  #toast { position: fixed; right: 20px; bottom: 20px; width: min(360px, calc(100% - 40px)); background: #12233F; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: 0 16px 36px rgba(0,0,0,0.35); transform: translateY(140%); transition: transform 0.3s ease; }
+  #toast.show { transform: translateY(0); }
+  #toast .icon { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="apiConfig">
+  <label>Apps Script /exec URL:</label>
+  <input id="apiUrl" type="text" placeholder="https://script.google.com/.../exec">
+  <label>API Key:</label>
+  <input id="apiKey" type="text" placeholder="same key as the kiosk">
+</div>
+
+<div id="pinGate">
+  <div class="title" style="font-size:20px;font-weight:700;margin-bottom:16px;">Staff PIN required</div>
+  <input id="staffPinInput" maxlength="10" inputmode="numeric" placeholder="Enter staff PIN">
+  <button id="unlockBtn">Unlock Attendance</button>
+  <div id="pinError">Incorrect PIN.</div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="title">Attendance Check-In</div>
+  </header>
+  <div id="stats">
+    <div class="stat"><div class="n mono" id="presentCount">0</div><div class="l">PRESENT</div></div>
+    <div class="stat"><div class="n mono" id="tardyCount">0</div><div class="l">TARDY</div></div>
+  </div>
+  <div id="videoWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="status">Requesting camera…</div>
+  <div style="color:#7C8AA8;font-size:13px;">— or type the 5-digit lunch PIN —</div>
+  <div id="pinBoxes">
+    <input maxlength="1" inputmode="numeric" data-i="0">
+    <input maxlength="1" inputmode="numeric" data-i="1">
+    <input maxlength="1" inputmode="numeric" data-i="2">
+    <input maxlength="1" inputmode="numeric" data-i="3">
+    <input maxlength="1" inputmode="numeric" data-i="4">
+  </div>
+</div>
+
+<div id="toast">
+  <div class="icon" id="toastIcon"></div>
+  <div>
+    <div class="mono" id="toastName" style="font-weight:700;font-size:14px;"></div>
+    <div id="toastMeta" style="font-size:12.5px;color:#7C8AA8;"></div>
+  </div>
+</div>
+
+<script>
+  const apiUrlInput = document.getElementById('apiUrl');
+  const apiKeyInput = document.getElementById('apiKey');
+  apiUrlInput.value = localStorage.getItem('hallpass_api_url') || '';
+  apiKeyInput.value = localStorage.getItem('hallpass_api_key') || '';
+  apiUrlInput.addEventListener('change', () => localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim()));
+  apiKeyInput.addEventListener('change', () => localStorage.setItem('hallpass_api_key', apiKeyInput.value.trim()));
+
+  let staffPin = '';
+
+  function api() { return apiUrlInput.value.trim(); }
+  function apiKey() { return apiKeyInput.value.trim(); }
+
+  async function apiGet(action, params) {
+    const url = new URL(api());
+    url.searchParams.set('action', action);
+    url.searchParams.set('key', apiKey());
+    Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString());
+    return res.json();
+  }
+  async function apiPost(body) {
+    const res = await fetch(api(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ key: apiKey() }, body))
+    });
+    return res.json();
+  }
+
+  document.getElementById('unlockBtn').addEventListener('click', async () => {
+    const pin = document.getElementById('staffPinInput').value.trim();
+    if (!pin) return;
+    // Any gated GET call doubles as the PIN check — getAttendanceToday needs it anyway.
+    const res = await apiGet('getAttendanceToday', { pin });
+    if (res.error) {
+      document.getElementById('pinError').style.display = 'block';
+      return;
+    }
+    staffPin = pin;
+    document.getElementById('pinGate').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    renderStats(res);
+    startCamera();
+    setInterval(refreshStats, 20000);
+  });
+
+  function renderStats(data) {
+    document.getElementById('presentCount').textContent = data.presentCount || 0;
+    document.getElementById('tardyCount').textContent = data.tardyCount || 0;
+  }
+  async function refreshStats() {
+    const res = await apiGet('getAttendanceToday', { pin: staffPin });
+    if (!res.error) renderStats(res);
+  }
+
+  function showToast(name, meta, ok) {
+    document.getElementById('toastName').textContent = name;
+    document.getElementById('toastMeta').textContent = meta;
+    const icon = document.getElementById('toastIcon');
+    icon.style.background = ok ? 'rgba(74,222,128,0.14)' : 'rgba(239,68,68,0.14)';
+    icon.innerHTML = ok
+      ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>'
+      : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  async function handleName(name) {
+    const res = await apiPost({ action: 'checkInAttendance', pin: staffPin, name });
+    if (res.success) {
+      showToast(res.name, res.status + ' · checked in', true);
+      refreshStats();
+    } else {
+      showToast('Not checked in', res.error || 'Unknown error', false);
+    }
+  }
+
+  // ---- camera ----
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const statusEl = document.getElementById('status');
+  let lastDecoded = '', lastDecodedAt = 0;
+
+  function startCamera() {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        video.srcObject = stream;
+        statusEl.textContent = 'Camera ready — scanning continuously';
+        statusEl.className = 'ok';
+        requestAnimationFrame(tick);
+      })
+      .catch(err => {
+        statusEl.textContent = 'Camera failed: ' + err.name;
+        statusEl.className = 'err';
+      });
+  }
+
+  function tick() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) {
+        const now = Date.now();
+        if (code.data !== lastDecoded || now - lastDecodedAt > 3000) {
+          lastDecoded = code.data; lastDecodedAt = now;
+          handleName(code.data);
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---- PIN fallback ----
+  const boxes = Array.from(document.querySelectorAll('#pinBoxes input'));
+  boxes.forEach((box, i) => {
+    box.addEventListener('input', () => {
+      box.value = box.value.replace(/[^0-9]/g, '');
+      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+      trySubmitPin();
+    });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
+      if (e.key === 'Enter') trySubmitPin(true);
+    });
+  });
+  async function trySubmitPin(forced) {
+    const pin = boxes.map(b => b.value).join('');
+    if (pin.length === 5 || forced) {
+      if (pin.length !== 5) return;
+      const lookup = await apiGet('lookupByPin', { pin });
+      if (lookup.found) handleName(lookup.name);
+      else showToast('No match', 'PIN: ' + pin, false);
+      boxes.forEach(b => b.value = '');
+      boxes[0].focus();
+    }
+  }
+</script>
+</body>
+</html>
