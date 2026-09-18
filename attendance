@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who's Out Now — SANY Hall Pass</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --accent: #8F0018; --navy: #0A1B33; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Work Sans', system-ui, sans-serif; background: var(--navy); color: #fff; min-height: 100vh; }
+  .mono { font-family: 'Space Grotesk', system-ui, sans-serif; }
+  #apiConfig { padding: 10px 20px; max-width: 900px; margin: 0 auto; }
+  #apiConfig input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; font-size: 11px; margin-bottom: 4px; }
+  #apiConfig label { font-size: 10px; color: #7C8AA8; }
+  header { padding: 20px; display: flex; align-items: center; justify-content: space-between; max-width: 900px; margin: 0 auto; }
+  header .title { font-size: 20px; font-weight: 700; }
+  header .sub { font-size: 12px; color: #7C8AA8; }
+  #teacherFilterBox { padding: 0 20px; max-width: 900px; margin: 0 auto 16px; }
+  #teacherFilterBox input { width: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; font-size: 14px; }
+  #countBadge { padding: 8px 18px; border-radius: 999px; background: rgba(143,0,24,0.16); border: 1px solid rgba(143,0,24,0.35); font-weight: 700; }
+  #countBadge .n { font-size: 22px; margin-right: 6px; color: #FF6B7F; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 20px 40px; display: flex; flex-direction: column; gap: 10px; }
+  .row { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 16px 18px; display: flex; align-items: center; gap: 16px; }
+  .row.limitHit { background: rgba(143,0,24,0.08); border-color: rgba(143,0,24,0.4); }
+  .avatar { width: 44px; height: 44px; border-radius: 999px; background: #022C66; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+  .name { font-weight: 700; font-size: 15px; }
+  .meta { font-size: 12.5px; color: #7C8AA8; }
+  .timer { font-size: 18px; font-weight: 700; margin-left: auto; }
+  .badge { padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; margin-left: 12px; }
+  #empty { text-align: center; color: #5B6A87; padding: 60px 20px; font-size: 14px; }
+</style>
+</head>
+<body>
+  <div id="apiConfig">
+    <label>Apps Script /exec URL:</label>
+    <input id="apiUrl" type="text" placeholder="https://script.google.com/.../exec">
+    <label>API Key:</label>
+    <input id="apiKey" type="text" placeholder="same key as the kiosk">
+  </div>
+  <header>
+    <div>
+      <div class="title">Who's out right now</div>
+      <div class="sub">Updates every 15 seconds — no refresh needed</div>
+    </div>
+    <div id="countBadge"><span class="n" id="countN">0</span>out</div>
+  </header>
+  <div id="teacherFilterBox">
+    <input id="teacherFilter" placeholder="Filter to one teacher (leave blank for whole school)…">
+  </div>
+  <main id="rows"></main>
+  <div id="empty" style="display:none;">Nobody's out right now.</div>
+
+<script>
+  const apiUrlInput = document.getElementById('apiUrl');
+  const apiKeyInput = document.getElementById('apiKey');
+  apiUrlInput.value = localStorage.getItem('hallpass_api_url') || '';
+  apiKeyInput.value = localStorage.getItem('hallpass_api_key') || '';
+  apiUrlInput.addEventListener('change', () => localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim()));
+  apiKeyInput.addEventListener('change', () => localStorage.setItem('hallpass_api_key', apiKeyInput.value.trim()));
+
+  const teacherFilter = document.getElementById('teacherFilter');
+  teacherFilter.value = localStorage.getItem('hallpass_whosout_filter') || '';
+  teacherFilter.addEventListener('change', () => {
+    localStorage.setItem('hallpass_whosout_filter', teacherFilter.value.trim());
+    refresh();
+  });
+
+  function initials(name) {
+    const parts = name.split(',').map(s => s.trim());
+    if (parts.length < 2) return name.slice(0, 2).toUpperCase();
+    return (parts[1][0] + parts[0][0]).toUpperCase();
+  }
+
+  function elapsed(iso) {
+    const start = new Date(iso);
+    const secs = Math.floor((Date.now() - start.getTime()) / 1000);
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  async function refresh() {
+    const url = apiUrlInput.value.trim();
+    const key = apiKeyInput.value.trim();
+    if (!url || !key) return;
+    try {
+      const u = new URL(url);
+      u.searchParams.set('action', 'getWhosOutNow');
+      u.searchParams.set('key', key);
+      const t = teacherFilter.value.trim();
+      if (t) u.searchParams.set('teacher', t);
+      const res = await fetch(u.toString());
+      const data = await res.json();
+      render(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function render(data) {
+    document.getElementById('countN').textContent = data.count || 0;
+    const rowsEl = document.getElementById('rows');
+    const emptyEl = document.getElementById('empty');
+    if (!data.students || data.students.length === 0) {
+      rowsEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    rowsEl.innerHTML = data.students.map(s => {
+      const atLimit = s.usedToday >= s.limit;
+      return `
+        <div class="row ${atLimit ? 'limitHit' : ''}">
+          <div class="avatar mono">${initials(s.name)}</div>
+          <div>
+            <div class="name">${s.name} <span class="meta">· Rm ${s.room || '—'} · ${s.teacher}</span></div>
+            <div class="meta">${s.reason}</div>
+          </div>
+          <div class="timer mono" data-start="${s.timeOutIso}">${elapsed(s.timeOutIso)}</div>
+          <div class="badge" style="background:${atLimit ? 'rgba(143,0,24,0.2)' : 'rgba(74,222,128,0.14)'}; color:${atLimit ? '#FF6B7F' : '#4ADE80'};">${s.usedToday} of ${s.limit} today</div>
+        </div>`;
+    }).join('');
+  }
+
+  // Live-tick the timers every second without re-fetching
+  setInterval(() => {
+    document.querySelectorAll('.timer[data-start]').forEach(el => {
+      el.textContent = elapsed(el.getAttribute('data-start'));
+    });
+  }, 1000);
+
+  refresh();
+  setInterval(refresh, 15000);
+</script>
+</body>
+</html>
