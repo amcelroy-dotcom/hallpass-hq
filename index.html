@@ -20,6 +20,8 @@
   nav { display: flex; gap: 4px; background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; }
   nav button { padding: 9px 16px; border-radius: 9px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 13px; cursor: pointer; }
   nav button.active { background: rgba(255,255,255,0.08); color: #fff; }
+  .attSubTab { padding: 8px 16px; border-radius: 8px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .attSubTab.active { background: rgba(143,0,24,0.2); color: #fff; }
   #settingsBtn { width: 40px; height: 40px; border-radius: 999px; background: rgba(255,255,255,0.06); border: none; color: #C7CEE0; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
   /* ---- Settings modal ---- */
@@ -96,13 +98,21 @@
   <nav>
     <button data-view="kiosk" class="active">Kiosk</button>
     <button data-view="attendance">Attendance</button>
-    <button data-view="trips">Field Trips</button>
     <button data-view="admin">Admin</button>
   </nav>
   <button id="settingsBtn" title="Settings">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04Z"/></svg>
   </button>
 </header>
+
+<div id="settingsPinGate" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;">
+  <div class="modalCard">
+    <h3>Admin PIN required</h3>
+    <input id="settingsPinInput" maxlength="10" inputmode="numeric" placeholder="Admin PIN" style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;font-size:16px;text-align:center;margin-bottom:10px;">
+    <button class="primary" id="settingsPinSubmit">Unlock Settings</button>
+    <div id="settingsPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;text-align:center;">Incorrect PIN.</div>
+  </div>
+</div>
 
 <div id="settingsModal">
   <div class="modalCard">
@@ -177,57 +187,90 @@
       <div id="attendancePinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
     </div>
     <div id="attendanceApp" style="display:none;">
-      <div class="statRow">
-        <div class="statBox"><div class="n mono" id="presentCount">0</div><div class="l">PRESENT</div></div>
-        <div class="statBox"><div class="n mono" id="tardyCount">0</div><div class="l">TARDY</div></div>
+
+      <div style="display:flex; gap:4px; background:rgba(255,255,255,0.05); border-radius:12px; padding:4px; margin-bottom:20px; width:fit-content;">
+        <button class="attSubTab active" data-sub="class">Class</button>
+        <button class="attSubTab" data-sub="schoolwide">Schoolwide</button>
+        <button class="attSubTab" data-sub="trips">Field Trips</button>
       </div>
-      <div class="card">
-        <div id="videoWrapAtt" class="cardInner">
+
+      <!-- ---- CLASS ATTENDANCE ---- -->
+      <div class="attSubView active" id="attSub-class">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div>
+              <div class="sectionLabel" style="margin:0;">THIS DEVICE IS SET UP FOR</div>
+              <div id="classTeacherName" style="font-size:17px; font-weight:700; margin-top:2px;">Not set</div>
+            </div>
+            <button class="ghostBtn" id="changeClassTeacherBtn" style="width:auto; background:rgba(255,255,255,0.06); color:#fff; padding:9px 16px; border-radius:9px;">Change teacher</button>
+          </div>
+          <div id="classTeacherPicker" style="display:none; margin-top:14px;">
+            <input id="classTeacherSearch" placeholder="Type a teacher's name…" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+            <div id="classTeacherList" style="max-height:160px; overflow-y:auto;"></div>
+          </div>
+        </div>
+
+        <div id="classNoSchedule" class="card" style="display:none; text-align:center; color:#7C8AA8; padding:30px;">
+          No class scheduled for this teacher right now.
+        </div>
+
+        <div id="classRosterCard" style="display:none;">
+          <div class="statRow">
+            <div class="statBox"><div class="n mono" id="classPresentCount">0</div><div class="l">PRESENT</div></div>
+            <div class="statBox"><div class="n mono" id="classLateCount">0</div><div class="l">RUNNING LATE</div></div>
+            <div class="statBox"><div class="n mono" id="classElsewhereCount">0</div><div class="l">ELSEWHERE</div></div>
+            <div class="statBox"><div class="n mono" id="classAbsentCount">0</div><div class="l">ABSENT</div></div>
+          </div>
+          <div class="card"><div id="classRosterList"></div></div>
+        </div>
+      </div>
+
+      <!-- ---- SCHOOLWIDE (bag-check) ATTENDANCE ---- -->
+      <div class="attSubView" id="attSub-schoolwide" style="display:none;">
+        <div class="statRow">
+          <div class="statBox"><div class="n mono" id="presentCount">0</div><div class="l">PRESENT</div></div>
+          <div class="statBox"><div class="n mono" id="tardyCount">0</div><div class="l">TARDY</div></div>
+        </div>
+        <div class="card">
+          <div class="sectionLabel">FAST SCAN — WALK-THROUGH LINE</div>
           <div id="videoWrapAttInner" style="position:relative; width:100%; aspect-ratio:4/3; background:#061224; border-radius:16px; overflow:hidden; margin-bottom:14px;">
             <video id="videoAtt" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
             <canvas id="canvasAtt" style="display:none;"></canvas>
           </div>
-        </div>
-        <span class="statusPill" id="camStatusAtt">Requesting camera…</span>
-        <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
-        <div class="pinBoxes" id="pinBoxesAtt">
-          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-          <input maxlength="1" inputmode="numeric">
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= FIELD TRIPS ================= -->
-  <div class="view" id="view-trips">
-    <div id="tripsGate" class="pinGate">
-      <div style="font-size:18px;font-weight:700;">Staff PIN required</div>
-      <input id="tripsPinInput" maxlength="10" inputmode="numeric" placeholder="Staff PIN">
-      <button id="tripsUnlockBtn">Unlock Field Trips</button>
-      <div id="tripsPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
-    </div>
-    <div id="tripsApp" style="display:none;">
-      <div class="grid2">
-        <div class="card">
-          <div class="sectionLabel">CREATE A TRIP</div>
-          <input id="newTripName" placeholder="Trip name (e.g. 6th Grade Museum Trip)" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
-          <input id="newTripDate" type="date" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
-          <textarea id="newTripRoster" placeholder="Paste student names, one per line (Last, First)" rows="6" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;font-family:inherit;"></textarea>
-          <button class="primaryBtn" id="createTripBtn">Create Trip</button>
-        </div>
-        <div class="card">
-          <div class="sectionLabel">SCAN CHECK-IN</div>
-          <select id="tripSelect"><option value="">Choose a trip…</option></select>
-          <select id="phaseSelect"><option value="">Choose a phase…</option></select>
-          <div id="tripProgress" class="whoMeta" style="margin-bottom:10px;"></div>
-          <div id="videoWrapTripInner" style="position:relative; width:100%; aspect-ratio:4/3; background:#061224; border-radius:16px; overflow:hidden; margin-bottom:14px; display:none;">
-            <video id="videoTrip" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
-            <canvas id="canvasTrip" style="display:none;"></canvas>
+          <span class="statusPill" id="camStatusAtt">Requesting camera…</span>
+          <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
+          <div class="pinBoxes" id="pinBoxesAtt">
+            <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+            <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+            <input maxlength="1" inputmode="numeric">
           </div>
-          <div id="tripRosterList"></div>
         </div>
       </div>
+
+      <!-- ---- FIELD TRIPS ---- -->
+      <div class="attSubView" id="attSub-trips" style="display:none;">
+        <div class="grid2">
+          <div class="card">
+            <div class="sectionLabel">CREATE A TRIP</div>
+            <input id="newTripName" placeholder="Trip name (e.g. 6th Grade Museum Trip)" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+            <input id="newTripDate" type="date" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+            <textarea id="newTripRoster" placeholder="Paste student names, one per line (Last, First)" rows="6" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;font-family:inherit;"></textarea>
+            <button class="primaryBtn" id="createTripBtn">Create Trip</button>
+          </div>
+          <div class="card">
+            <div class="sectionLabel">SCAN CHECK-IN</div>
+            <select id="tripSelect"><option value="">Choose a trip…</option></select>
+            <select id="phaseSelect"><option value="">Choose a phase…</option></select>
+            <div id="tripProgress" class="whoMeta" style="margin-bottom:10px;"></div>
+            <div id="videoWrapTripInner" style="position:relative; width:100%; aspect-ratio:4/3; background:#061224; border-radius:16px; overflow:hidden; margin-bottom:14px; display:none;">
+              <video id="videoTrip" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
+              <canvas id="canvasTrip" style="display:none;"></canvas>
+            </div>
+            <div id="tripRosterList"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -296,7 +339,25 @@ const apiKeyInput = document.getElementById('apiKey');
 apiUrlInput.value = localStorage.getItem('hallpass_api_url') || DEFAULT_API_URL;
 apiKeyInput.value = localStorage.getItem('hallpass_api_key') || DEFAULT_API_KEY;
 
-document.getElementById('settingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.add('show'));
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsPinInput').value = '';
+  document.getElementById('settingsPinError').style.display = 'none';
+  document.getElementById('settingsPinGate').style.display = 'flex';
+  document.getElementById('settingsPinInput').focus();
+});
+async function trySettingsPin() {
+  const pin = document.getElementById('settingsPinInput').value.trim();
+  if (!pin) return;
+  const res = await apiGet('checkAdminPin', { pin });
+  if (res.valid) {
+    document.getElementById('settingsPinGate').style.display = 'none';
+    document.getElementById('settingsModal').classList.add('show');
+  } else {
+    document.getElementById('settingsPinError').style.display = 'block';
+  }
+}
+document.getElementById('settingsPinSubmit').addEventListener('click', trySettingsPin);
+document.getElementById('settingsPinInput').addEventListener('keydown', e => { if (e.key === 'Enter') trySettingsPin(); });
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim());
   localStorage.setItem('hallpass_api_key', apiKeyInput.value.trim());
@@ -419,7 +480,6 @@ document.querySelectorAll('nav button').forEach(btn => {
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
-    if (btn.dataset.view === 'trips') loadTripsList();
     if (btn.dataset.view === 'admin' && adminPin) refreshAdmin();
   });
 });
@@ -604,6 +664,7 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
   const res = await apiPost({ action: 'signOut', name: currentStudent.name, teacher: selectedTeacher.displayName, room: selectedTeacher.room, reason: selectedReason });
   document.getElementById('kioskConfirmCard').style.display = 'none';
   document.getElementById('kioskScanCard').style.display = 'block';
+  camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok';
   if (res.success) { showToast(currentStudent.name + ' signed out', selectedReason + ' · ' + res.remaining + ' remaining today', true); cooldown(); refreshWhosOut(); }
   else if (res.reasonCode === 'limit_reached') showReject('Pass denied', currentStudent.name + ' has used all ' + res.limit + ' hall passes allowed for today.');
   else if (res.reasonCode === 'already_out') showReject('Already out', currentStudent.name + ' already has an open pass.');
@@ -639,7 +700,9 @@ setTimeout(refreshWhosOut, 1500);
 // ATTENDANCE
 // ============================================================
 let staffPin = '';
-document.getElementById('attendanceUnlockBtn').addEventListener('click', async () => {
+document.getElementById('attendanceUnlockBtn').addEventListener('click', unlockAttendance);
+document.getElementById('attendancePinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAttendance(); });
+async function unlockAttendance() {
   const pin = document.getElementById('attendancePinInput').value.trim();
   if (!pin) return;
   const res = await apiGet('getAttendanceToday', { pin });
@@ -650,7 +713,89 @@ document.getElementById('attendanceUnlockBtn').addEventListener('click', async (
   renderAttStats(res);
   startAttCamera();
   setInterval(refreshAttStats, 20000);
+  loadPhases();
+  initClassAttendance();
+}
+
+// ---- Sub-tab switching (Class / Schoolwide / Field Trips) ----
+document.querySelectorAll('.attSubTab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.attSubTab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.attSubView').forEach(v => v.style.display = 'none');
+    document.getElementById('attSub-' + btn.dataset.sub).style.display = 'block';
+    if (btn.dataset.sub === 'trips') loadTripsList();
+    if (btn.dataset.sub === 'class') refreshClassAttendance();
+  });
 });
+
+// ---- CLASS ATTENDANCE ----
+let classTeachers = [];
+let currentClassTeacher = localStorage.getItem('hallpass_class_teacher') || '';
+
+async function initClassAttendance() {
+  if (classTeachers.length === 0) classTeachers = (await apiGet('getTeachers', {})).teachers || [];
+  document.getElementById('classTeacherName').textContent = currentClassTeacher || 'Not set — tap "Change teacher"';
+  if (currentClassTeacher) refreshClassAttendance();
+}
+
+document.getElementById('changeClassTeacherBtn').addEventListener('click', () => {
+  const picker = document.getElementById('classTeacherPicker');
+  const show = picker.style.display === 'none';
+  picker.style.display = show ? 'block' : 'none';
+  if (show) renderClassTeacherList(classTeachers);
+});
+function renderClassTeacherList(list) {
+  document.getElementById('classTeacherList').innerHTML = list.slice(0, 30).map(t =>
+    `<div class="opt" data-name="${t.displayName}">${t.displayName}${t.room ? ' — Rm ' + t.room : ''}</div>`).join('');
+  document.querySelectorAll('#classTeacherList .opt').forEach(el => el.addEventListener('click', () => {
+    currentClassTeacher = el.dataset.name;
+    localStorage.setItem('hallpass_class_teacher', currentClassTeacher);
+    document.getElementById('classTeacherName').textContent = currentClassTeacher;
+    document.getElementById('classTeacherPicker').style.display = 'none';
+    refreshClassAttendance();
+  }));
+}
+document.getElementById('classTeacherSearch').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  renderClassTeacherList(q ? classTeachers.filter(t => t.displayName.toLowerCase().includes(q)) : classTeachers);
+});
+
+async function refreshClassAttendance() {
+  if (!currentClassTeacher) return;
+  const res = await apiGet('getClassAttendanceView', { pin: staffPin, teacher: currentClassTeacher });
+  document.getElementById('classNoSchedule').style.display = res.hasSection ? 'none' : 'block';
+  document.getElementById('classRosterCard').style.display = res.hasSection ? 'block' : 'none';
+  if (!res.hasSection) return;
+
+  document.getElementById('classPresentCount').textContent = res.counts.present;
+  document.getElementById('classLateCount').textContent = res.counts.runningLate;
+  document.getElementById('classElsewhereCount').textContent = res.counts.elsewhere;
+  document.getElementById('classAbsentCount').textContent = res.counts.absent;
+
+  const stateMeta = {
+    present:      { label: 'Present',      color: '#4ADE80', bg: 'rgba(74,222,128,0.08)' },
+    running_late: { label: 'Running late', color: '#F5B942', bg: 'rgba(245,158,11,0.08)' },
+    elsewhere:    { label: 'Elsewhere',    color: '#60A5FA', bg: 'rgba(96,165,250,0.08)' },
+    absent:       { label: 'Absent',       color: '#FF6B7F', bg: 'rgba(143,0,24,0.08)' }
+  };
+  document.getElementById('classRosterList').innerHTML = res.students.map(s => {
+    const m = stateMeta[s.state];
+    return `<div class="whoRow" style="background:${m.bg};">
+      <div class="avatar mono">${initials(s.name)}</div>
+      <div style="flex:1;"><div style="font-weight:700;">${s.name}</div>${s.detail ? `<div class="whoMeta">${s.detail}</div>` : ''}</div>
+      <div style="font-weight:700; font-size:12px; color:${m.color};">${m.label}</div>
+      ${s.state !== 'present' ? `<button class="markPresentBtn" data-name="${s.name}" style="margin-left:10px; padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; cursor:pointer;">Mark present</button>` : ''}
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.markPresentBtn').forEach(btn => btn.addEventListener('click', async () => {
+    await apiPost({ action: 'markClassPresent', pin: staffPin, name: btn.dataset.name, section: res.section });
+    refreshClassAttendance();
+  }));
+}
+setInterval(() => { if (document.getElementById('attSub-class').style.display !== 'none' && currentClassTeacher) refreshClassAttendance(); }, 20000);
+
+// ---- SCHOOLWIDE (bag-check) ATTENDANCE ----
 function renderAttStats(d) { document.getElementById('presentCount').textContent = d.presentCount || 0; document.getElementById('tardyCount').textContent = d.tardyCount || 0; }
 async function refreshAttStats() { const res = await apiGet('getAttendanceToday', { pin: staffPin }); if (!res.error) renderAttStats(res); }
 
@@ -667,15 +812,20 @@ async function tickAtt() {
     const data = await scanVideoFrame(videoAtt, canvasAtt, ctxAtt);
     if (data) {
       const now = Date.now();
-      if (data !== lastDecodedAtt || now - lastDecodedAttAt > 3000) { lastDecodedAtt = data; lastDecodedAttAt = now; handleAttendanceName(data); }
+      if (data !== lastDecodedAtt || now - lastDecodedAttAt > 2000) { lastDecodedAtt = data; lastDecodedAttAt = now; handleAttendanceName(data); }
     }
   }
   requestAnimationFrame(tickAtt);
 }
+// Deliberately minimal: one API call, one toast, immediately ready for the
+// next kid — no confirmation step, since speed through the line is the
+// entire point of this mode.
 async function handleAttendanceName(name) {
-  const res = await apiPost({ action: 'checkInAttendance', pin: staffPin, name });
-  if (res.success) { showToast(res.name, res.status + ' · checked in', true); refreshAttStats(); }
-  else showToast('Not checked in', res.error || 'Unknown error', false);
+  const res = await apiPost({ action: 'bagCheckScan', pin: staffPin, name });
+  if (res.success) showToast(res.name, 'Checked in', true);
+  else if (res.alreadyIn) showToast(res.name, 'Already checked in', true);
+  else showToast('No match', res.error || 'Unknown error', false);
+  refreshAttStats();
 }
 const attBoxes = Array.from(document.querySelectorAll('#pinBoxesAtt input'));
 attBoxes.forEach((box, i) => {
@@ -689,58 +839,43 @@ async function trySubmitAttPin(forced) {
     const lookup = await apiGet('lookupByPin', { pin });
     if (lookup.found) handleAttendanceName(lookup.name); else showToast('No match', 'PIN: ' + pin, false);
     attBoxes.forEach(b => b.value = '');
+    attBoxes[0].focus();
   }
 }
 
-// ============================================================
-// FIELD TRIPS
-// ============================================================
-let tripsPin = '', currentTripId = '', currentPhase = '';
-document.getElementById('tripsUnlockBtn').addEventListener('click', async () => {
-  const pin = document.getElementById('tripsPinInput').value.trim();
-  if (!pin) return;
-  const res = await apiGet('getFieldTrips', { pin });
-  if (res.error) { document.getElementById('tripsPinError').style.display = 'block'; return; }
-  tripsPin = pin;
-  document.getElementById('tripsGate').style.display = 'none';
-  document.getElementById('tripsApp').style.display = 'block';
-  loadTripsList();
-  loadPhases();
-});
+// ---- FIELD TRIPS (nested under Attendance, shares staffPin) ----
+let currentTripId = '', currentPhase = '';
 
 async function loadPhases() {
   const res = await apiGet('getFieldTripPhases', {});
   const sel = document.getElementById('phaseSelect');
   sel.innerHTML = '<option value="">Choose a phase…</option>' + (res.phases || []).map(p => `<option value="${p}">${p}</option>`).join('');
 }
-
 async function loadTripsList() {
-  if (!tripsPin) return;
-  const res = await apiGet('getFieldTrips', { pin: tripsPin });
+  if (!staffPin) return;
+  const res = await apiGet('getFieldTrips', { pin: staffPin });
   const sel = document.getElementById('tripSelect');
   sel.innerHTML = '<option value="">Choose a trip…</option>' + (res.trips || []).map(t => `<option value="${t.tripId}">${t.name} (${t.date})</option>`).join('');
 }
-
 document.getElementById('createTripBtn').addEventListener('click', async () => {
   const name = document.getElementById('newTripName').value.trim();
   const date = document.getElementById('newTripDate').value;
   const roster = document.getElementById('newTripRoster').value.split('\n').map(s => s.trim()).filter(Boolean);
   if (!name || !date || roster.length === 0) { showToast('Missing info', 'Name, date, and at least one student are required.', false); return; }
-  const res = await apiPost({ action: 'createFieldTrip', pin: tripsPin, name, date, roster, createdBy: 'kiosk' });
+  const res = await apiPost({ action: 'createFieldTrip', pin: staffPin, name, date, roster, createdBy: 'kiosk' });
   if (res.success) {
     showToast('Trip created', name, true);
     document.getElementById('newTripName').value = ''; document.getElementById('newTripDate').value = ''; document.getElementById('newTripRoster').value = '';
     loadTripsList();
   }
 });
-
 async function loadTripRoster() {
   if (!currentTripId || !currentPhase) { document.getElementById('tripRosterList').innerHTML = ''; document.getElementById('tripProgress').textContent = ''; return; }
-  const res = await apiGet('getFieldTripRoster', { pin: tripsPin, tripId: currentTripId, phase: currentPhase });
+  const res = await apiGet('getFieldTripRoster', { pin: staffPin, tripId: currentTripId, phase: currentPhase });
   if (res.error) return;
   document.getElementById('tripProgress').textContent = res.scannedCount + ' of ' + res.totalCount + ' scanned for this phase';
   document.getElementById('tripRosterList').innerHTML = res.roster.map(s => `
-    <div class="whoRow ${s.scanned ? '' : ''}" style="${s.scanned ? 'opacity:0.5;' : ''}">
+    <div class="whoRow" style="${s.scanned ? 'opacity:0.5;' : ''}">
       <div class="avatar mono" style="background:${s.scanned ? '#022C66' : '#8F0018'};">${initials(s.name)}</div>
       <div style="flex:1;">${s.name}</div>
       <div class="whoMeta">${s.scanned ? '✓ Scanned' : 'Not yet'}</div>
@@ -779,11 +914,10 @@ async function tickTrip() {
   requestAnimationFrame(tickTrip);
 }
 async function handleTripScan(name) {
-  const res = await apiPost({ action: 'recordFieldTripScan', pin: tripsPin, tripId: currentTripId, name, phase: currentPhase });
+  const res = await apiPost({ action: 'recordFieldTripScan', pin: staffPin, tripId: currentTripId, name, phase: currentPhase });
   if (res.success) { showToast(res.name, 'Scanned: ' + currentPhase, true); loadTripRoster(); }
   else showToast('Not scanned', res.error || 'Unknown error', false);
 }
-// Tap-to-scan fallback for roster rows (useful if a student's badge is hard to scan mid-trip)
 document.getElementById('tripRosterList').addEventListener('click', e => {
   const row = e.target.closest('.whoRow');
   if (!row || !currentTripId || !currentPhase) return;
@@ -795,7 +929,9 @@ document.getElementById('tripRosterList').addEventListener('click', e => {
 // ADMIN
 // ============================================================
 let adminPin = '';
-document.getElementById('adminUnlockBtn').addEventListener('click', async () => {
+document.getElementById('adminUnlockBtn').addEventListener('click', unlockAdmin);
+document.getElementById('adminPinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAdmin(); });
+async function unlockAdmin() {
   const pin = document.getElementById('adminPinInput').value.trim();
   if (!pin) return;
   const res = await apiGet('getAdminSummary', { pin });
@@ -805,7 +941,7 @@ document.getElementById('adminUnlockBtn').addEventListener('click', async () => 
   document.getElementById('adminApp').style.display = 'block';
   renderAdminSummary(res);
   refreshAdmin();
-});
+}
 function renderAdminSummary(d) {
   document.getElementById('adminPassesToday').textContent = d.passesToday || 0;
   document.getElementById('adminOutNow').textContent = d.currentlyOut || 0;
