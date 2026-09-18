@@ -295,20 +295,45 @@ function api() { return apiUrlInput.value.trim(); }
 function apiKey() { return apiKeyInput.value.trim(); }
 
 async function apiGet(action, params) {
-  const url = new URL(api());
-  url.searchParams.set('action', action);
-  url.searchParams.set('key', apiKey());
-  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  return res.json();
+  if (!api() || !apiKey()) { flashCamStatusSafe('Set your API URL and key in Settings first.'); throw new Error('no_api_config'); }
+  try {
+    const url = new URL(api());
+    url.searchParams.set('action', action);
+    url.searchParams.set('key', apiKey());
+    Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString());
+    return await res.json();
+  } catch (err) {
+    flashCamStatusSafe('Could not reach the server: ' + err.message);
+    throw err;
+  }
 }
 async function apiPost(body) {
-  const res = await fetch(api(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ key: apiKey() }, body))
-  });
-  return res.json();
+  if (!api() || !apiKey()) { flashCamStatusSafe('Set your API URL and key in Settings first.'); throw new Error('no_api_config'); }
+  try {
+    const res = await fetch(api(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ key: apiKey() }, body))
+    });
+    return await res.json();
+  } catch (err) {
+    flashCamStatusSafe('Could not reach the server: ' + err.message);
+    throw err;
+  }
+}
+// Safe to call from anywhere (before the kiosk's camStatus element is guaranteed
+// relevant, e.g. from Attendance or Field Trips) — falls back to a toast if the
+// kiosk status pill isn't the right place to show this particular failure.
+function flashCamStatusSafe(msg) {
+  console.error(msg);
+  const el = document.getElementById('camStatus');
+  if (el && document.getElementById('view-kiosk').classList.contains('active')) {
+    el.textContent = msg; el.className = 'statusPill err';
+    setTimeout(() => { el.textContent = 'Camera ready — scanning'; el.className = 'statusPill ok'; }, 4000);
+  } else {
+    showToast('Connection problem', msg, false);
+  }
 }
 
 function showToast(name, meta, ok) {
