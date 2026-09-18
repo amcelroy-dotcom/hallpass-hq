@@ -630,6 +630,32 @@ async function openConfirmScreen(status) {
       document.getElementById('suggestedTeacher').style.display = 'none';
       document.getElementById('manualPicker').style.display = 'block';
     };
+  } else {
+    // No confident per-student schedule match (11th/12th, no class right
+    // now, etc.) — fall back to this device's assigned room/teacher, if
+    // one's been set (same assignment used in Attendance > Class). This is
+    // a lower-confidence guess than a real schedule match, so it's still
+    // presented as something to confirm, not silently auto-selected quite
+    // as strongly — but it saves a manual search on the common case where
+    // this Chromebook genuinely lives in one room all day.
+    const homeTeacherName = localStorage.getItem('hallpass_class_teacher');
+    if (homeTeacherName) {
+      const match = teachers.find(t => t.displayName === homeTeacherName);
+      if (match) {
+        selectedTeacher = match;
+        updateConfirmEnabled();
+        document.getElementById('suggestedName').textContent = match.displayName;
+        document.getElementById('suggestedMeta').textContent = "This device's assigned room (or their sub)";
+        document.getElementById('suggestedTeacher').style.display = 'block';
+        document.getElementById('manualPicker').style.display = 'none';
+        document.getElementById('changeLocationBtn').onclick = () => {
+          selectedTeacher = null;
+          updateConfirmEnabled();
+          document.getElementById('suggestedTeacher').style.display = 'none';
+          document.getElementById('manualPicker').style.display = 'block';
+        };
+      }
+    }
   }
 }
 
@@ -700,22 +726,28 @@ setTimeout(refreshWhosOut, 1500);
 // ATTENDANCE
 // ============================================================
 let staffPin = '';
-document.getElementById('attendanceUnlockBtn').addEventListener('click', unlockAttendance);
-document.getElementById('attendancePinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAttendance(); });
-async function unlockAttendance() {
-  const pin = document.getElementById('attendancePinInput').value.trim();
+document.getElementById('attendanceUnlockBtn').addEventListener('click', () => unlockAttendance(document.getElementById('attendancePinInput').value.trim()));
+document.getElementById('attendancePinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAttendance(document.getElementById('attendancePinInput').value.trim()); });
+async function unlockAttendance(pin) {
   if (!pin) return;
   const res = await apiGet('getAttendanceToday', { pin });
-  if (res.error) { document.getElementById('attendancePinError').style.display = 'block'; return; }
+  if (res.error) {
+    document.getElementById('attendancePinError').style.display = 'block';
+    localStorage.removeItem('hallpass_staff_pin'); // a stale/invalid saved PIN shouldn't keep silently failing on every reload
+    return;
+  }
   staffPin = pin;
+  localStorage.setItem('hallpass_staff_pin', pin); // persists per device — no re-entry needed on every reload
   document.getElementById('attendanceGate').style.display = 'none';
   document.getElementById('attendanceApp').style.display = 'block';
   renderAttStats(res);
-  startAttCamera();
   setInterval(refreshAttStats, 20000);
   loadPhases();
   initClassAttendance();
 }
+// Silent auto-unlock if this device already has a working saved PIN
+const savedStaffPin = localStorage.getItem('hallpass_staff_pin');
+if (savedStaffPin) unlockAttendance(savedStaffPin);
 
 // ---- Sub-tab switching (Class / Schoolwide / Field Trips) ----
 document.querySelectorAll('.attSubTab').forEach(btn => {
@@ -726,6 +758,7 @@ document.querySelectorAll('.attSubTab').forEach(btn => {
     document.getElementById('attSub-' + btn.dataset.sub).style.display = 'block';
     if (btn.dataset.sub === 'trips') loadTripsList();
     if (btn.dataset.sub === 'class') refreshClassAttendance();
+    if (btn.dataset.sub === 'schoolwide' && !attCameraStarted) { attCameraStarted = true; startAttCamera(); }
   });
 });
 
@@ -796,6 +829,7 @@ async function refreshClassAttendance() {
 setInterval(() => { if (document.getElementById('attSub-class').style.display !== 'none' && currentClassTeacher) refreshClassAttendance(); }, 20000);
 
 // ---- SCHOOLWIDE (bag-check) ATTENDANCE ----
+let attCameraStarted = false;
 function renderAttStats(d) { document.getElementById('presentCount').textContent = d.presentCount || 0; document.getElementById('tardyCount').textContent = d.tardyCount || 0; }
 async function refreshAttStats() { const res = await apiGet('getAttendanceToday', { pin: staffPin }); if (!res.error) renderAttStats(res); }
 
@@ -929,19 +963,25 @@ document.getElementById('tripRosterList').addEventListener('click', e => {
 // ADMIN
 // ============================================================
 let adminPin = '';
-document.getElementById('adminUnlockBtn').addEventListener('click', unlockAdmin);
-document.getElementById('adminPinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAdmin(); });
-async function unlockAdmin() {
-  const pin = document.getElementById('adminPinInput').value.trim();
+document.getElementById('adminUnlockBtn').addEventListener('click', () => unlockAdmin(document.getElementById('adminPinInput').value.trim()));
+document.getElementById('adminPinInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlockAdmin(document.getElementById('adminPinInput').value.trim()); });
+async function unlockAdmin(pin) {
   if (!pin) return;
   const res = await apiGet('getAdminSummary', { pin });
-  if (res.error) { document.getElementById('adminPinError').style.display = 'block'; return; }
+  if (res.error) {
+    document.getElementById('adminPinError').style.display = 'block';
+    localStorage.removeItem('hallpass_admin_pin');
+    return;
+  }
   adminPin = pin;
+  localStorage.setItem('hallpass_admin_pin', pin);
   document.getElementById('adminGate').style.display = 'none';
   document.getElementById('adminApp').style.display = 'block';
   renderAdminSummary(res);
   refreshAdmin();
 }
+const savedAdminPin = localStorage.getItem('hallpass_admin_pin');
+if (savedAdminPin) unlockAdmin(savedAdminPin);
 function renderAdminSummary(d) {
   document.getElementById('adminPassesToday').textContent = d.passesToday || 0;
   document.getElementById('adminOutNow').textContent = d.currentlyOut || 0;
