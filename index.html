@@ -457,6 +457,7 @@ async function identifyByName(text) { handleIdentifyResult(await apiGet('lookupB
 async function identifyByPin(pin) { handleIdentifyResult(await apiGet('lookupByPin', { pin }), pin); }
 
 async function handleIdentifyResult(res, queried) {
+  if (res.error) { flashCamStatus('Server said: ' + res.error); return; }
   if (!res.found) { flashCamStatus('No student found for that ' + (queried.length === 5 ? 'PIN' : 'badge')); return; }
   currentStudent = { name: res.name, pin: res.pin };
   const status = await apiGet('getStudentStatus', { name: res.name });
