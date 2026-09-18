@@ -192,20 +192,34 @@
   }
 
   async function apiGet(action, params) {
-    const url = new URL(api());
-    url.searchParams.set('action', action);
-    Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString());
-    return res.json();
+    if (!api()) { flashStatus('No Apps Script URL set — paste it in the box above.'); throw new Error('no_api_url'); }
+    try {
+      const url = new URL(api());
+      url.searchParams.set('action', action);
+      Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url.toString());
+      return await res.json();
+    } catch (err) {
+      log('API GET failed: ' + err.message);
+      flashStatus('Could not reach the server. Check the API URL above.');
+      throw err;
+    }
   }
 
   async function apiPost(body) {
-    const res = await fetch(api(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
-      body: JSON.stringify(body)
-    });
-    return res.json();
+    if (!api()) { flashStatus('No Apps Script URL set — paste it in the box above.'); throw new Error('no_api_url'); }
+    try {
+      const res = await fetch(api(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
+        body: JSON.stringify(body)
+      });
+      return await res.json();
+    } catch (err) {
+      log('API POST failed: ' + err.message);
+      flashStatus('Could not reach the server. Check the API URL above.');
+      throw err;
+    }
   }
 
   // ---------- Camera scan loop ----------
