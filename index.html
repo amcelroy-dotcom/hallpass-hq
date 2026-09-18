@@ -375,8 +375,40 @@ function elapsed(iso) {
 }
 
 // ============================================================
-// Tab navigation
+// Shared scan engine — uses the browser's native BarcodeDetector when
+// available (hardware-accelerated, same class of tech as a phone's built-in
+// camera scanner — noticeably faster and more accurate) and only falls back
+// to the pure-JS jsQR library on older browsers that don't support it.
 // ============================================================
+let nativeDetector = null;
+if ('BarcodeDetector' in window) {
+  try { nativeDetector = new BarcodeDetector({ formats: ['qr_code'] }); }
+  catch (e) { nativeDetector = null; }
+}
+
+async function scanVideoFrame(video, canvas, ctx) {
+  if (nativeDetector) {
+    try {
+      const codes = await nativeDetector.detect(video);
+      if (codes.length > 0) return codes[0].rawValue;
+      return null;
+    } catch (e) {
+      // fall through to jsQR if native detection errors on this frame
+    }
+  }
+  // jsQR fallback: disable smoothing so downscaling doesn't blur the sharp
+  // module edges a QR code needs to decode reliably — smoothing (the
+  // default) was the real cause of the accuracy drop, more than the
+  // resolution reduction itself.
+  const maxDim = 640;
+  const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+  canvas.width = video.videoWidth * scale; canvas.height = video.videoHeight * scale;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+  return code ? code.data : null;
+}
 document.querySelectorAll('nav button').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -423,22 +455,14 @@ navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
   .then(stream => { video.srcObject = stream; camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok'; requestAnimationFrame(tick); })
   .catch(err => { camStatus.textContent = 'Camera failed: ' + err.name; camStatus.className = 'statusPill err'; });
 
-function tick() {
+async function tick() {
   if (video.readyState === video.HAVE_ENOUGH_DATA && Date.now() > cooldownUntil) {
-    // Downscale before decoding — jsQR doesn't need full camera resolution
-    // to read a QR code, and scanning a smaller image is dramatically
-    // faster per frame, which is what "slow scanning" actually was.
-    const maxDim = 480;
-    const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
-    canvas.width = video.videoWidth * scale; canvas.height = video.videoHeight * scale;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data) {
+    const data = await scanVideoFrame(video, canvas, ctx);
+    if (data) {
       const now = Date.now();
-      if (code.data !== lastDecoded || now - lastDecodedAt > 3000) {
-        lastDecoded = code.data; lastDecodedAt = now;
-        identifyByName(code.data);
+      if (data !== lastDecoded || now - lastDecodedAt > 3000) {
+        lastDecoded = data; lastDecodedAt = now;
+        identifyByName(data);
       }
     }
   }
@@ -616,17 +640,12 @@ function startAttCamera() {
     .then(stream => { videoAtt.srcObject = stream; document.getElementById('camStatusAtt').textContent = 'Camera ready'; document.getElementById('camStatusAtt').className = 'statusPill ok'; requestAnimationFrame(tickAtt); })
     .catch(err => { document.getElementById('camStatusAtt').textContent = 'Camera failed: ' + err.name; document.getElementById('camStatusAtt').className = 'statusPill err'; });
 }
-function tickAtt() {
+async function tickAtt() {
   if (videoAtt.readyState === videoAtt.HAVE_ENOUGH_DATA) {
-    const maxDim = 480;
-    const scale = Math.min(1, maxDim / Math.max(videoAtt.videoWidth, videoAtt.videoHeight));
-    canvasAtt.width = videoAtt.videoWidth * scale; canvasAtt.height = videoAtt.videoHeight * scale;
-    ctxAtt.drawImage(videoAtt, 0, 0, canvasAtt.width, canvasAtt.height);
-    const imageData = ctxAtt.getImageData(0, 0, canvasAtt.width, canvasAtt.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data) {
+    const data = await scanVideoFrame(videoAtt, canvasAtt, ctxAtt);
+    if (data) {
       const now = Date.now();
-      if (code.data !== lastDecodedAtt || now - lastDecodedAttAt > 3000) { lastDecodedAtt = code.data; lastDecodedAttAt = now; handleAttendanceName(code.data); }
+      if (data !== lastDecodedAtt || now - lastDecodedAttAt > 3000) { lastDecodedAtt = data; lastDecodedAttAt = now; handleAttendanceName(data); }
     }
   }
   requestAnimationFrame(tickAtt);
@@ -727,17 +746,12 @@ function startTripCamera() {
     .then(stream => { videoTrip.srcObject = stream; requestAnimationFrame(tickTrip); })
     .catch(err => showToast('Camera failed', err.name, false));
 }
-function tickTrip() {
+async function tickTrip() {
   if (videoTrip.readyState === videoTrip.HAVE_ENOUGH_DATA && currentTripId && currentPhase) {
-    const maxDim = 480;
-    const scale = Math.min(1, maxDim / Math.max(videoTrip.videoWidth, videoTrip.videoHeight));
-    canvasTrip.width = videoTrip.videoWidth * scale; canvasTrip.height = videoTrip.videoHeight * scale;
-    ctxTrip.drawImage(videoTrip, 0, 0, canvasTrip.width, canvasTrip.height);
-    const imageData = ctxTrip.getImageData(0, 0, canvasTrip.width, canvasTrip.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data) {
+    const data = await scanVideoFrame(videoTrip, canvasTrip, ctxTrip);
+    if (data) {
       const now = Date.now();
-      if (code.data !== lastDecodedTrip || now - lastDecodedTripAt > 3000) { lastDecodedTrip = code.data; lastDecodedTripAt = now; handleTripScan(code.data); }
+      if (data !== lastDecodedTrip || now - lastDecodedTripAt > 3000) { lastDecodedTrip = data; lastDecodedTripAt = now; handleTripScan(data); }
     }
   }
   requestAnimationFrame(tickTrip);
