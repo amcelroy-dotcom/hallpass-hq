@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hall Pass — Camera Scan Test</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: #0A1B33;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    box-sizing: border-box;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #7C8AA8; font-size: 13px; margin-bottom: 12px; }
+  #apiConfig {
+    width: 100%; max-width: 420px; margin-bottom: 16px;
+  }
+  #apiConfig input {
+    width: 100%; box-sizing: border-box; padding: 10px 12px;
+    border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05); color: #fff; font-size: 12px;
+  }
+  #apiConfig label { font-size: 11px; color: #7C8AA8; }
+  #videoWrap {
+    position: relative; width: 100%; max-width: 420px;
+    aspect-ratio: 4 / 3; background: #061224;
+    border-radius: 16px; overflow: hidden;
+  }
+  video, canvas {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  canvas { display: none; }
+  #status {
+    margin-top: 16px; padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.08);
+  }
+  #status.ok { background: rgba(34,197,94,0.18); color: #4ADE80; }
+  #status.err { background: rgba(239,68,68,0.18); color: #FF6B7F; }
+  #result {
+    margin-top: 20px; width: 100%; max-width: 420px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px; padding: 16px; display: none;
+  }
+  #result.show { display: block; }
+  #result .name { font-size: 18px; font-weight: 700; }
+  #result .meta { color: #7C8AA8; font-size: 13px; margin-top: 2px; }
+  .divider { margin: 24px 0 16px; color: #5B6A87; font-size: 13px; }
+  #pinBoxes { display: flex; gap: 8px; }
+  #pinBoxes input {
+    width: 46px; height: 58px; text-align: center; font-size: 22px;
+    border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05); color: #fff;
+  }
+  #log {
+    margin-top: 24px; width: 100%; max-width: 420px; font-size: 11px;
+    color: #5B6A87; white-space: pre-wrap; max-height: 140px; overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+  <h1>Camera scan test (external host)</h1>
+  <div class="sub">Point a QR code (encoding "Last, First") at the camera</div>
+
+  <div id="apiConfig">
+    <label for="apiUrl">Apps Script /exec URL (paste yours here for testing):</label>
+    <input id="apiUrl" type="text" placeholder="https://script.google.com/macros/s/XXXX/exec">
+  </div>
+
+  <div id="videoWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="status">Requesting camera…</div>
+
+  <div id="result">
+    <div class="name" id="resultName"></div>
+    <div class="meta" id="resultMeta"></div>
+  </div>
+
+  <div class="divider">— or type the 5-digit lunch PIN —</div>
+  <div id="pinBoxes">
+    <input maxlength="1" inputmode="numeric" data-i="0">
+    <input maxlength="1" inputmode="numeric" data-i="1">
+    <input maxlength="1" inputmode="numeric" data-i="2">
+    <input maxlength="1" inputmode="numeric" data-i="3">
+    <input maxlength="1" inputmode="numeric" data-i="4">
+  </div>
+
+  <div id="log"></div>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const statusEl = document.getElementById('status');
+  const resultEl = document.getElementById('result');
+  const resultName = document.getElementById('resultName');
+  const resultMeta = document.getElementById('resultMeta');
+  const logEl = document.getElementById('log');
+  const apiUrlInput = document.getElementById('apiUrl');
+
+  // Remember the API URL in this browser so you don't retype it every test
+  apiUrlInput.value = localStorage.getItem('hallpass_api_url') || '';
+  apiUrlInput.addEventListener('change', () => {
+    localStorage.setItem('hallpass_api_url', apiUrlInput.value.trim());
+  });
+
+  let lastDecoded = '';
+  let lastDecodedAt = 0;
+
+  function log(msg) {
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+  }
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = cls || '';
+  }
+
+  function showResult(name, extra) {
+    resultName.textContent = name;
+    resultMeta.textContent = extra;
+    resultEl.className = 'show';
+    setTimeout(() => { resultEl.className = ''; }, 4000);
+  }
+
+  function apiBase() {
+    const url = apiUrlInput.value.trim();
+    if (!url) {
+      log('No API URL set — paste your /exec URL above first.');
+      return null;
+    }
+    return url;
+  }
+
+  // ---- Camera + continuous QR scan loop ----
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(stream => {
+      video.srcObject = stream;
+      setStatus('Camera ready — scanning continuously', 'ok');
+      log('Camera stream acquired.');
+      requestAnimationFrame(tick);
+    })
+    .catch(err => {
+      setStatus('Camera failed: ' + err.name, 'err');
+      log('getUserMedia error: ' + err.message);
+    });
+
+  function tick() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert'
+      });
+      if (code && code.data) {
+        const now = Date.now();
+        if (code.data !== lastDecoded || now - lastDecodedAt > 3000) {
+          lastDecoded = code.data;
+          lastDecodedAt = now;
+          handleDecoded(code.data);
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  async function handleDecoded(text) {
+    log('QR decoded: "' + text + '"');
+    const base = apiBase();
+    if (!base) return;
+    try {
+      const url = base + '?action=lookupByName&name=' + encodeURIComponent(text);
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.found) {
+        showResult(data.name, 'PIN on file: ' + data.pin);
+        log('Match found for "' + data.name + '"');
+      } else {
+        showResult('No match', 'QR said: "' + (data.queried || text) + '"');
+        log('No roster match for "' + text + '"');
+      }
+    } catch (err) {
+      log('Fetch error: ' + err.message);
+    }
+  }
+
+  // ---- PIN fallback: auto-advance + Enter to submit ----
+  const boxes = Array.from(document.querySelectorAll('#pinBoxes input'));
+  boxes.forEach((box, i) => {
+    box.addEventListener('input', () => {
+      box.value = box.value.replace(/[^0-9]/g, '');
+      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+      maybeSubmitPin();
+    });
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
+      if (e.key === 'Enter') maybeSubmitPin(true);
+    });
+  });
+
+  async function maybeSubmitPin(forced) {
+    const pin = boxes.map(b => b.value).join('');
+    if (pin.length === 5 || forced) {
+      if (pin.length !== 5) return;
+      const base = apiBase();
+      if (!base) return;
+      log('PIN submitted: ' + pin);
+      try {
+        const url = base + '?action=lookupByPin&pin=' + encodeURIComponent(pin);
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.found) {
+          showResult(data.name, 'Matched by PIN');
+          log('PIN match: ' + data.name);
+        } else {
+          showResult('No match', 'PIN: ' + (data.queried || pin));
+          log('No roster match for PIN ' + pin);
+        }
+      } catch (err) {
+        log('Fetch error: ' + err.message);
+      }
+      boxes.forEach(b => b.value = '');
+      boxes[0].focus();
+    }
+  }
+</script>
+</body>
+</html>
