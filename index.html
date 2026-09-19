@@ -307,6 +307,7 @@
 
       <div style="display:flex; gap:4px; background:rgba(255,255,255,0.05); border-radius:12px; padding:4px; margin-bottom:20px; width:fit-content; flex-wrap:wrap;">
         <button class="attSubTab active" data-adminsub="monitor">Hall Monitor</button>
+        <button class="attSubTab" data-adminsub="occupancy">Occupancy</button>
         <button class="attSubTab" data-adminsub="encounters">Encounter Prevention</button>
         <button class="attSubTab" data-adminsub="insights">Insights</button>
         <button class="attSubTab" data-adminsub="notifications">Notifications</button>
@@ -327,6 +328,20 @@
           </div>
           <div id="monitorList"></div>
           <div id="monitorEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">Nobody's out right now.</div>
+        </div>
+      </div>
+
+      <!-- ---- BUILDING OCCUPANCY ---- -->
+      <div class="adminSubView" id="adminSub-occupancy" style="display:none;">
+        <div id="unaccountedCard" class="card" style="display:none; margin-bottom:16px; border-color:rgba(239,68,68,0.4); background:rgba(239,68,68,0.06);">
+          <div class="sectionLabel" style="color:#FF6B7F;">⚠ UNACCOUNTED FOR RIGHT NOW</div>
+          <div style="color:#7C8AA8; font-size:12px; margin-bottom:10px;">Absent from current class, no open hall pass, never checked into the building today.</div>
+          <div id="unaccountedList"></div>
+        </div>
+        <div class="card">
+          <div class="sectionLabel">EVERY SECTION IN SESSION RIGHT NOW · DAY <span id="occupancyDayType"></span></div>
+          <div id="occupancyGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; margin-top:10px;"></div>
+          <div id="occupancyEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">No classes in session right now.</div>
         </div>
       </div>
 
@@ -376,6 +391,8 @@
           </div>
           <div class="sectionLabel">RECENT PASSES</div>
           <div id="snapshotHistory"></div>
+          <div class="sectionLabel" style="margin-top:16px;">TODAY'S SCHEDULE</div>
+          <div id="snapshotDaySchedule"></div>
           <button class="ghostBtn" id="snapshotCloseBtn" style="margin-top:12px;">Close</button>
         </div>
       </div>
@@ -409,7 +426,7 @@
 // temporarily pointing one device elsewhere) — it's optional, not required.
 // ============================================================
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwLIeUS2CvDd8ykGAzOL1iIhREZl4AbR5qiKcDg8595EJNEyrkJSU9mnNebfeWHHPvh4Q/exec';
-const DEFAULT_API_KEY = 'sany-hp-7x2m9qzb4k'; // <-- put your actual Script Properties API_KEY value here before deploying
+const DEFAULT_API_KEY = 'PASTE_YOUR_REAL_API_KEY_HERE'; // <-- put your actual Script Properties API_KEY value here before deploying
 
 const apiUrlInput = document.getElementById('apiUrl');
 const apiKeyInput = document.getElementById('apiKey');
@@ -804,9 +821,22 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
 });
 
 // ---- Who's out, embedded in the kiosk ----
+// Defaults to whatever teacher this device is assigned to (same assignment
+// used in Attendance > Class and the kiosk's fallback suggestion) — a
+// classroom kiosk should show that room's own students by default, not the
+// whole school. A saved explicit filter override (if someone typed one
+// in) takes priority over the device assignment; clearing the box falls
+// back to the device assignment rather than to school-wide.
 const kioskFilter = document.getElementById('kioskTeacherFilter');
-kioskFilter.value = localStorage.getItem('hallpass_kiosk_whoout_filter') || '';
-kioskFilter.addEventListener('change', () => { localStorage.setItem('hallpass_kiosk_whoout_filter', kioskFilter.value.trim()); refreshWhosOut(); });
+const deviceHomeTeacher = localStorage.getItem('hallpass_class_teacher') || '';
+kioskFilter.value = localStorage.getItem('hallpass_kiosk_whoout_filter') || deviceHomeTeacher;
+kioskFilter.placeholder = deviceHomeTeacher ? 'Showing: ' + deviceHomeTeacher + ' (clear to search)' : 'Filter to one teacher…';
+kioskFilter.addEventListener('change', () => {
+  const v = kioskFilter.value.trim();
+  if (v) localStorage.setItem('hallpass_kiosk_whoout_filter', v);
+  else { localStorage.removeItem('hallpass_kiosk_whoout_filter'); kioskFilter.value = deviceHomeTeacher; }
+  refreshWhosOut();
+});
 
 async function refreshWhosOut() {
   if (!api() || !apiKey()) return;
@@ -893,6 +923,13 @@ function renderClassTeacherList(list) {
     document.getElementById('classTeacherName').textContent = currentClassTeacher;
     document.getElementById('classTeacherPicker').style.display = 'none';
     refreshClassAttendance();
+    // Keep the kiosk's Who's Out default in sync — only if the person
+    // hasn't already typed their own explicit filter override there.
+    if (!localStorage.getItem('hallpass_kiosk_whoout_filter')) {
+      kioskFilter.value = currentClassTeacher;
+      kioskFilter.placeholder = 'Showing: ' + currentClassTeacher + ' (clear to search)';
+      refreshWhosOut();
+    }
   }));
 }
 document.getElementById('classTeacherSearch').addEventListener('input', e => {
@@ -920,17 +957,56 @@ async function refreshClassAttendance() {
   };
   document.getElementById('classRosterList').innerHTML = res.students.map(s => {
     const m = stateMeta[s.state];
-    return `<div class="whoRow" style="background:${m.bg};">
+    return `<div class="whoRow" style="background:${m.bg}; cursor:pointer;" data-teachersnap="${s.name}">
       <div class="avatar mono">${initials(s.name)}</div>
       <div style="flex:1;"><div style="font-weight:700;">${s.name}</div>${s.detail ? `<div class="whoMeta">${s.detail}</div>` : ''}</div>
       <div style="font-weight:700; font-size:12px; color:${m.color};">${m.label}</div>
       ${s.state !== 'present' ? `<button class="markPresentBtn" data-name="${s.name}" style="margin-left:10px; padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; cursor:pointer;">Mark present</button>` : ''}
     </div>`;
   }).join('');
-  document.querySelectorAll('.markPresentBtn').forEach(btn => btn.addEventListener('click', async () => {
+  document.querySelectorAll('.markPresentBtn').forEach(btn => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
     await apiPost({ action: 'markClassPresent', pin: staffPin, name: btn.dataset.name, section: res.section });
     refreshClassAttendance();
   }));
+  document.querySelectorAll('[data-teachersnap]').forEach(row => row.addEventListener('click', () => openTeacherDaySchedule(row.dataset.teachersnap)));
+}
+
+// Read-only day-schedule drill-down for teachers (no End Pass / Restore
+// Limit actions — those stay admin-only). Reuses the same snapshot modal
+// shell, just hides the admin action buttons and the pass-history section.
+async function openTeacherDaySchedule(name) {
+  const daySchedule = await apiGet('getStudentDaySchedule', { pin: staffPin, name });
+  document.getElementById('snapshotName').textContent = name;
+  document.getElementById('snapshotMeta').textContent = '';
+  document.getElementById('snapshotEndPassBtn').style.display = 'none';
+  document.getElementById('snapshotRestoreBtn').style.display = 'none';
+  document.getElementById('snapshotHistory').parentElement.querySelector('.sectionLabel').style.display = 'none';
+  document.getElementById('snapshotHistory').style.display = 'none';
+
+  const statusMeta = {
+    in_class: { label: 'In class', color: '#4ADE80' },
+    currently_out: { label: 'Out on a pass', color: '#60A5FA' },
+    was_out: { label: 'Was out during this period', color: '#F5B942' },
+    completed: { label: 'Completed', color: '#7C8AA8' },
+    upcoming: { label: 'Upcoming', color: '#5B6A87' }
+  };
+  const scheduleEl = document.getElementById('snapshotDaySchedule');
+  if (!daySchedule.hasSection) {
+    scheduleEl.innerHTML = '<div class="whoMeta">No schedule on file for this student.</div>';
+  } else {
+    scheduleEl.innerHTML = daySchedule.periods.map(p => {
+      const m = statusMeta[p.status];
+      return `<div class="whoRow" style="border-left:3px solid ${m.color};">
+        <div style="flex:1;">
+          <div style="font-weight:600; font-size:12.5px;">${p.class} · ${p.teacher}</div>
+          <div class="whoMeta">${p.start} – ${p.end}${p.passReason ? ' · ' + p.passReason : ''}</div>
+        </div>
+        <div style="font-size:11px; font-weight:700; color:${m.color};">${m.label}</div>
+      </div>`;
+    }).join('') || '<div class="whoMeta">No periods scheduled today.</div>';
+  }
+  document.getElementById('snapshotModal').style.display = 'flex';
 }
 setInterval(() => { if (document.getElementById('attSub-class').style.display !== 'none' && currentClassTeacher) refreshClassAttendance(); }, 20000);
 
@@ -1085,7 +1161,9 @@ async function unlockAdmin(pin) {
   refreshAdmin();
   refreshMonitor();
   refreshEncounters();
+  refreshOccupancy();
   setInterval(refreshMonitor, 10000);
+  setInterval(refreshOccupancy, 20000);
 }
 const savedAdminPin = localStorage.getItem('hallpass_admin_pin');
 if (savedAdminPin) unlockAdmin(savedAdminPin);
@@ -1149,6 +1227,51 @@ document.getElementById('exportCsvBtn').addEventListener('click', async () => {
   URL.revokeObjectURL(url);
 });
 
+// ---- BUILDING OCCUPANCY (the deep, schedule-aware view) ----
+async function refreshOccupancy() {
+  const [occ, unaccounted] = await Promise.all([
+    apiGet('getBuildingOccupancy', { pin: adminPin }),
+    apiGet('getUnaccountedFor', { pin: adminPin })
+  ]);
+  document.getElementById('occupancyDayType').textContent = occ.dayType || '—';
+
+  const gridEl = document.getElementById('occupancyGrid'), emptyEl = document.getElementById('occupancyEmpty');
+  const sections = occ.sections || [];
+  if (sections.length === 0) { gridEl.innerHTML = ''; emptyEl.style.display = 'block'; }
+  else {
+    emptyEl.style.display = 'none';
+    gridEl.innerHTML = sections.map(s => {
+      const pct = Math.round((s.counts.present / s.totalStudents) * 100) || 0;
+      const color = pct >= 90 ? '#4ADE80' : pct >= 70 ? '#F5B942' : '#FF6B7F';
+      return `<div class="whoRow" style="flex-direction:column; align-items:stretch; cursor:default;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div style="font-weight:700; font-family:'Space Grotesk',monospace;">${s.section}</div>
+          <div style="font-weight:700; color:${color};">${pct}%</div>
+        </div>
+        <div style="display:flex; gap:6px; font-size:10px; font-weight:700;">
+          <span style="color:#4ADE80;">${s.counts.present} in</span>
+          <span style="color:#F5B942;">${s.counts.runningLate} late</span>
+          <span style="color:#60A5FA;">${s.counts.elsewhere} out</span>
+          <span style="color:#FF6B7F;">${s.counts.absent} absent</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const uCard = document.getElementById('unaccountedCard'), uList = document.getElementById('unaccountedList');
+  const students = unaccounted.students || [];
+  if (students.length === 0) { uCard.style.display = 'none'; }
+  else {
+    uCard.style.display = 'block';
+    uList.innerHTML = students.map(s => `
+      <div class="whoRow" style="cursor:pointer; background:rgba(239,68,68,0.05);" data-snapshot="${s.name}">
+        <div class="avatar mono" style="background:#8F0018;">${initials(s.name)}</div>
+        <div style="flex:1;">${s.name}</div>
+        <div class="whoMeta">Section ${s.section}</div>
+      </div>`).join('');
+    uList.querySelectorAll('[data-snapshot]').forEach(row => row.addEventListener('click', () => openSnapshot(row.dataset.snapshot)));
+  }
+}
 // ---- ENCOUNTER PREVENTION ----
 async function refreshEncounters() {
   const res = await apiGet('getEncounterPairs', { pin: adminPin });
@@ -1179,7 +1302,13 @@ document.getElementById('addEncounterBtn').addEventListener('click', async () =>
 let snapshotCurrentName = '';
 async function openSnapshot(name) {
   snapshotCurrentName = name;
-  const res = await apiGet('getStudentSnapshot', { pin: adminPin, name });
+  document.getElementById('snapshotRestoreBtn').style.display = 'block';
+  document.getElementById('snapshotHistory').style.display = 'block';
+  document.getElementById('snapshotHistory').parentElement.querySelector('.sectionLabel').style.display = 'block';
+  const [res, daySchedule] = await Promise.all([
+    apiGet('getStudentSnapshot', { pin: adminPin, name }),
+    apiGet('getStudentDaySchedule', { pin: adminPin, name })
+  ]);
   document.getElementById('snapshotName').textContent = res.name;
   document.getElementById('snapshotMeta').textContent = 'Section ' + (res.section || '—') + ' · Limit: ' + res.limit + '/day · ' + res.totalPasses + ' total passes on record';
   const outNow = monitorData.find(s => s.name === name);
@@ -1191,6 +1320,30 @@ async function openSnapshot(name) {
         <div class="whoMeta">${new Date(h.timeOut).toLocaleString()} ${h.duration ? '· ' + h.duration : (h.timeIn ? '' : '· still out')}</div>
       </div>
     </div>`).join('') || '<div class="whoMeta">No history yet.</div>';
+
+  const statusMeta = {
+    in_class: { label: 'In class', color: '#4ADE80' },
+    currently_out: { label: 'Out on a pass', color: '#60A5FA' },
+    was_out: { label: 'Was out during this period', color: '#F5B942' },
+    completed: { label: 'Completed', color: '#7C8AA8' },
+    upcoming: { label: 'Upcoming', color: '#5B6A87' }
+  };
+  const scheduleEl = document.getElementById('snapshotDaySchedule');
+  if (!daySchedule.hasSection) {
+    scheduleEl.innerHTML = '<div class="whoMeta">No schedule on file for this student (11th/12th grade or unmapped section).</div>';
+  } else {
+    scheduleEl.innerHTML = daySchedule.periods.map(p => {
+      const m = statusMeta[p.status];
+      return `<div class="whoRow" style="border-left:3px solid ${m.color};">
+        <div style="flex:1;">
+          <div style="font-weight:600; font-size:12.5px;">${p.class} · ${p.teacher}</div>
+          <div class="whoMeta">${p.start} – ${p.end}${p.passReason ? ' · ' + p.passReason : ''}</div>
+        </div>
+        <div style="font-size:11px; font-weight:700; color:${m.color};">${m.label}</div>
+      </div>`;
+    }).join('') || '<div class="whoMeta">No periods scheduled today.</div>';
+  }
+
   document.getElementById('snapshotModal').style.display = 'flex';
 }
 document.getElementById('snapshotEndPassBtn').addEventListener('click', async () => {
