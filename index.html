@@ -183,7 +183,10 @@
 
 <div id="settingsModal">
   <div class="modalCard" style="max-width:440px; max-height:85vh; overflow-y:auto;">
-    <h3>Settings</h3>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <h3 style="margin:0;">Settings</h3>
+      <button id="closeSettingsBtn" style="background:none; border:none; color:#7C8AA8; font-size:22px; line-height:1; cursor:pointer; padding:4px 8px;">&times;</button>
+    </div>
 
     <div class="sectionLabel" style="margin-top:6px;">GENERAL — THIS DEVICE ONLY</div>
     <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; cursor:pointer; font-size:var(--text-base); font-weight:600;">
@@ -646,6 +649,12 @@ async function activateDevice() {
 // ---- Gear icon: opens directly, no PIN needed for General Settings ----
 document.getElementById('settingsBtn').addEventListener('click', () => {
   document.getElementById('settingsModal').classList.add('show');
+});
+document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsModal').classList.remove('show');
+});
+document.getElementById('settingsModal').addEventListener('click', (e) => {
+  if (e.target.id === 'settingsModal') e.target.classList.remove('show');
 });
 document.getElementById('adminSettingsLocked').style.display = 'block';
 document.getElementById('unlockAdminSettingsBtn').addEventListener('click', () => {
