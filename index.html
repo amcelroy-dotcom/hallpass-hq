@@ -6,24 +6,69 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230A1B33%22/><path d=%22M0 100 L100 0 L100 40 L40 100 Z%22 fill=%22%238F0018%22/><text x=%2250%22 y=%2266%22 font-family=%22sans-serif%22 font-weight=%22900%22 font-size=%2244%22 fill=%22%23fff%22 text-anchor=%22middle%22>S</text></svg>">
 <title>SANY Hall Pass</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --accent: #8F0018; --navy: #0A1B33; }
+  :root {
+    --accent: #8F0018;      /* SANY maroon */
+    --accent-light: #B8324A;
+    --brand-blue: #022C66;  /* SANY navy — the actual brand blue, distinct from the app's dark background */
+    --navy: #0A1B33;        /* app background shade */
+
+    /* Consolidated type scale — every text size in the app should be one
+       of these, rather than the 11px/12px/12.5px/13px drift that crept in
+       from iterating quickly. */
+    --text-xs: 11px;
+    --text-sm: 12.5px;
+    --text-base: 14px;
+    --text-md: 15px;
+    --text-lg: 18px;
+    --text-xl: 22px;
+
+    --transition-fast: 150ms ease;
+  }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: 'Work Sans', system-ui, sans-serif; background: var(--navy); color: #fff; min-height: 100vh; }
   .mono { font-family: 'Space Grotesk', system-ui, sans-serif; }
 
+  /* Hover/press feedback — buttons and clickable rows were completely
+     flat before; this alone makes the whole app feel more responsive. */
+  button { transition: background var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast); }
+  button:active { transform: scale(0.97); }
+  .whoRow[style*="cursor:pointer"]:hover, .whoRow.clickable:hover { background: rgba(255,255,255,0.06) !important; }
+  .opt:hover { background: rgba(255,255,255,0.08); }
+  .primaryBtn:hover:not(:disabled) { background: var(--accent-light); }
+  .attSubTab:hover:not(.active) { background: rgba(255,255,255,0.04); }
+  nav button:hover:not(.active) { color: #C7CEE0; }
+
+  /* Fade between views/sub-tabs instead of an instant cut. */
+  .view, .attSubView, .adminSubView { animation: fadeIn var(--transition-fast); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Loading skeleton — a stat box showing "0" before real data has ever
+     loaded reads as "confirmed zero," not "still loading." This class
+     shows a neutral dash instead until the first real fetch completes. */
+  .statBox.loading .n { color: #3A4560; }
+
+  /* Colorblind-friendly mode (toggled in Settings > General): adds an icon
+     alongside every color-coded status, since present/late/elsewhere/
+     absent and similar states are color-only otherwise — a real
+     usability gap for colorblind staff, not just a nice-to-have. */
+  body.colorblind-mode .statusIcon { display: inline-flex !important; }
+
   /* ---- Top nav ---- */
-  header { position: sticky; top: 0; z-index: 20; background: #0A1B33; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 60px; gap: 10px; }
+  header { position: sticky; top: 0; z-index: 20; background: #0A1B33; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 60px; gap: 10px; position: relative; }
+  header::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--accent), var(--brand-blue)); opacity: 0.6; }
   .brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .brand .dot { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
-  .brand .name { font-weight: 700; font-size: 15px; white-space: nowrap; }
+  .brand .dot { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--brand-blue)); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .brand .name { font-weight: 700; font-size: var(--text-md); white-space: nowrap; }
   nav { display: flex; gap: 2px; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 3px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   nav::-webkit-scrollbar { display: none; }
-  nav button { padding: 8px 12px; border-radius: 8px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: 12.5px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  nav button { padding: 8px 12px; border-radius: 8px; border: none; background: transparent; color: #7C8AA8; font-weight: 700; font-size: var(--text-sm); cursor: pointer; white-space: nowrap; flex-shrink: 0; position: relative; }
   nav button.active { background: rgba(255,255,255,0.08); color: #fff; }
+  nav button.active::after { content: ''; position: absolute; bottom: -4px; left: 12px; right: 12px; height: 2px; background: var(--accent); border-radius: 2px; }
   @media (max-width: 480px) {
     .brand .name { display: none; } /* icon alone is enough on very narrow phones — nav needs the room */
     header { padding: 0 12px; height: 56px; }
@@ -68,7 +113,9 @@
   .pinBoxes .pinCell.filled { border-color: var(--accent); }
   .pinBoxes .pinRealInput { position: absolute; inset: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; font-size: 16px; color: transparent; background: transparent; caret-color: transparent; }
 
-  .sectionLabel { font-size: 11px; font-weight: 700; color: #7C8AA8; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .sectionLabel { font-size: var(--text-xs); font-weight: 700; color: #7FA8D9; letter-spacing: 0.04em; margin-bottom: 8px; }
+  #view-admin .card, #view-hallmonitor .card { border-color: rgba(143,0,24,0.18); }
+  #view-kiosk .card, #view-attendance .card { border-color: rgba(2,44,102,0.35); }
   .whoRow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
   .whoRow.limitHit { background: rgba(143,0,24,0.08); border-color: rgba(143,0,24,0.4); }
   .avatar { width: 36px; height: 36px; border-radius: 999px; background: #022C66; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
@@ -135,25 +182,54 @@
 </div>
 
 <div id="settingsModal">
-  <div class="modalCard">
-    <h3>Connection settings</h3>
-    <label>Apps Script /exec URL</label>
-    <input id="apiUrl" placeholder="https://script.google.com/.../exec">
-    <label>API Key</label>
-    <input id="apiKey" placeholder="the shared key">
-    <button class="primary" id="saveSettingsBtn">Save</button>
+  <div class="modalCard" style="max-width:440px; max-height:85vh; overflow-y:auto;">
+    <h3>Settings</h3>
+
+    <div class="sectionLabel" style="margin-top:6px;">GENERAL — THIS DEVICE ONLY</div>
+    <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; cursor:pointer; font-size:var(--text-base); font-weight:600;">
+      Enhanced status indicators
+      <input type="checkbox" id="prefColorblind" style="width:20px; height:20px;">
+    </label>
+    <div style="color:#7C8AA8; font-size:var(--text-xs); margin:-6px 0 10px;">Adds an icon alongside every color-coded status (present, absent, etc.) for easier reading regardless of color vision.</div>
+
+    <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; cursor:pointer; font-size:var(--text-base); font-weight:600;">
+      Vibrate on successful scan
+      <input type="checkbox" id="prefVibration" style="width:20px; height:20px;">
+    </label>
+    <div style="color:#7C8AA8; font-size:var(--text-xs); margin:-6px 0 16px;">Phones/tablets only — a brief buzz alongside the visual flash, useful in a noisy hallway.</div>
+
+    <button class="ghostBtn" id="logOutDeviceBtn" style="background:rgba(255,255,255,0.06); color:#fff; border-radius:10px; padding:11px;">Log out this device (clear saved staff/admin PINs)</button>
+
+    <div style="border-top:1px solid rgba(255,255,255,0.08); margin:20px 0 16px;"></div>
+
+    <div id="adminSettingsLocked">
+      <div class="sectionLabel" style="margin:0;">ADMIN SETTINGS</div>
+      <div style="color:#7C8AA8; font-size:var(--text-sm); margin:6px 0 12px;">Connection details for this deployment — requires the admin PIN.</div>
+      <button class="primary" id="unlockAdminSettingsBtn">Unlock Admin Settings</button>
+    </div>
+
+    <div id="adminSettingsUnlocked" style="display:none;">
+      <div class="sectionLabel" style="margin:0;">ADMIN SETTINGS</div>
+      <label>Apps Script /exec URL</label>
+      <input id="apiUrl" placeholder="https://script.google.com/.../exec">
+      <label>API Key</label>
+      <input id="apiKey" placeholder="the shared key">
+      <button class="primary" id="saveSettingsBtn">Save</button>
+    </div>
   </div>
 </div>
 
-<div id="deviceSetupGate" style="position:fixed; inset:0; background:#0A1B33; display:none; align-items:center; justify-content:center; z-index:200; padding:20px;">
-  <div class="modalCard" style="max-width:420px;">
-    <h3>One-time device setup</h3>
-    <div style="color:#7C8AA8; font-size:13px; margin-bottom:16px;">This device hasn't been set up yet. Enter the setup key given to you by your school's admin — this only needs to happen once per device.</div>
-    <input id="deviceSetupKeyInput" placeholder="Setup key" style="width:100%; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:14px; margin-bottom:10px;">
+<div id="deviceSetupGate" style="position:fixed; inset:0; background:radial-gradient(circle at 20% 10%, rgba(143,0,24,0.15), transparent 55%), radial-gradient(circle at 80% 90%, rgba(2,44,102,0.25), transparent 55%), #0A1B33; display:none; align-items:center; justify-content:center; z-index:200; padding:20px;">
+  <div class="modalCard" style="max-width:420px; text-align:center;">
+    <div style="width:56px; height:56px; border-radius:16px; background:linear-gradient(135deg, var(--accent), var(--brand-blue)); display:flex; align-items:center; justify-content:center; margin:0 auto 18px; font-weight:700; font-size:22px;" class="mono">SH</div>
+    <h3 style="text-align:center;">Welcome to SANY Hall Pass</h3>
+    <div style="color:#9AAAC9; font-size:var(--text-base); margin-bottom:20px; line-height:1.5;">This device hasn't been set up yet. Enter the setup key given to you by your school's admin — this only needs to happen once per device.</div>
+    <input id="deviceSetupKeyInput" placeholder="Setup key" style="width:100%; padding:13px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:var(--text-base); margin-bottom:12px; text-align:center;">
     <button class="primary" id="deviceSetupSubmit">Activate This Device</button>
-    <div id="deviceSetupError" style="display:none; color:#FF6B7F; font-size:13px; margin-top:10px;">That key didn't work — check with your admin.</div>
+    <div id="deviceSetupError" style="display:none; color:#FF6B7F; font-size:var(--text-sm); margin-top:10px;">That key didn't work — check with your admin.</div>
   </div>
 </div>
+
 
 <main>
 
@@ -204,6 +280,10 @@
             <button id="showAllTeachersLink" class="ghostBtn" style="display:none; text-align:left; padding:8px 0;">Not seeing them? Show all teachers instead →</button>
           </div>
           <div class="sectionLabel">Reason</div>
+          <button id="bathroomBtn" class="reasonBtn" style="width:100%; padding:16px; margin-bottom:8px; font-size:var(--text-md); display:flex; align-items:center; justify-content:center; gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"/><path d="M4 12l8-8 8 8"/></svg>
+            Bathroom
+          </button>
           <div id="reasonGrid"></div>
           <button class="primaryBtn" id="confirmBtn" disabled>Sign Out</button>
           <button class="ghostBtn" id="cancelBtn">Cancel</button>
@@ -274,10 +354,10 @@
 
         <div id="classRosterCard" style="display:none;">
           <div class="statRow">
-            <div class="statBox"><div class="n mono" id="classPresentCount">0</div><div class="l">PRESENT</div></div>
-            <div class="statBox"><div class="n mono" id="classLateCount">0</div><div class="l">RUNNING LATE</div></div>
-            <div class="statBox"><div class="n mono" id="classElsewhereCount">0</div><div class="l">ELSEWHERE</div></div>
-            <div class="statBox"><div class="n mono" id="classAbsentCount">0</div><div class="l">ABSENT</div></div>
+            <div class="statBox"><div class="n mono" id="classPresentCount">–</div><div class="l">PRESENT</div></div>
+            <div class="statBox"><div class="n mono" id="classLateCount">–</div><div class="l">RUNNING LATE</div></div>
+            <div class="statBox"><div class="n mono" id="classElsewhereCount">–</div><div class="l">ELSEWHERE</div></div>
+            <div class="statBox"><div class="n mono" id="classAbsentCount">–</div><div class="l">ABSENT</div></div>
           </div>
           <div class="card"><div id="classRosterList"></div></div>
         </div>
@@ -286,8 +366,8 @@
       <!-- ---- SCHOOLWIDE (bag-check) ATTENDANCE ---- -->
       <div class="attSubView" id="attSub-schoolwide" style="display:none;">
         <div class="statRow">
-          <div class="statBox"><div class="n mono" id="presentCount">0</div><div class="l">PRESENT</div></div>
-          <div class="statBox"><div class="n mono" id="tardyCount">0</div><div class="l">TARDY</div></div>
+          <div class="statBox"><div class="n mono" id="presentCount">–</div><div class="l">PRESENT</div></div>
+          <div class="statBox"><div class="n mono" id="tardyCount">–</div><div class="l">TARDY</div></div>
         </div>
         <div class="card">
           <div class="sectionLabel">FAST SCAN — WALK-THROUGH LINE</div>
@@ -349,14 +429,15 @@
         <button class="attSubTab" data-adminsub="encounters">Encounter Prevention</button>
         <button class="attSubTab" data-adminsub="insights">Insights</button>
         <button class="attSubTab" data-adminsub="notifications">Notifications</button>
+        <button class="attSubTab" data-adminsub="dataimport">Data Import</button>
       </div>
 
       <!-- ---- HALL MONITOR ---- -->
       <div class="adminSubView active" id="adminSub-monitor">
         <div class="statRow">
-          <div class="statBox"><div class="n mono" id="adminPassesToday">0</div><div class="l">PASSES TODAY</div></div>
-          <div class="statBox"><div class="n mono" id="adminOutNow">0</div><div class="l">OUT NOW</div></div>
-          <div class="statBox"><div class="n mono" id="adminAvgDuration">0</div><div class="l">AVG MIN</div></div>
+          <div class="statBox"><div class="n mono" id="adminPassesToday">–</div><div class="l">PASSES TODAY</div></div>
+          <div class="statBox"><div class="n mono" id="adminOutNow">–</div><div class="l">OUT NOW</div></div>
+          <div class="statBox"><div class="n mono" id="adminAvgDuration">–</div><div class="l">AVG MIN</div></div>
           <div class="statBox"><div class="n mono" id="adminDayType">—</div><div class="l">DAY TYPE</div></div>
         </div>
         <div class="card">
@@ -430,8 +511,53 @@
       <!-- ---- NOTIFICATIONS ---- -->
       <div class="adminSubView" id="adminSub-notifications" style="display:none;">
         <div class="card">
-          <div class="sectionLabel">NOTIFICATIONS</div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <div class="sectionLabel" style="margin:0;">NOTIFICATIONS</div>
+            <button id="markAllReadBtn" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; font-weight:700; cursor:pointer;">Mark All Read</button>
+          </div>
           <div id="notificationsList"></div>
+        </div>
+      </div>
+
+      <!-- ---- DATA IMPORT (yearly refresh tools) ---- -->
+      <div class="adminSubView" id="adminSub-dataimport" style="display:none;">
+        <div class="card" style="margin-bottom:16px; padding:14px 18px;">
+          <div style="display:flex; gap:24px; flex-wrap:wrap; font-size:var(--text-sm); color:#9AAAC9;">
+            <div>Roster last imported: <strong id="lastRosterImportText" style="color:#fff;">checking…</strong></div>
+            <div>Schedule last imported: <strong id="lastScheduleImportText" style="color:#fff;">checking…</strong></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sectionLabel">ROSTER &amp; LUNCH PIN IMPORT</div>
+          <div style="color:#7C8AA8; font-size:var(--text-sm); margin-bottom:12px;">Paste CSV data below, or start from the template. Nothing is written until you review and click Apply.</div>
+          <button id="downloadRosterTemplateBtn" style="padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:12px; font-weight:700; cursor:pointer; margin-bottom:10px;">Download Template CSV</button>
+          <textarea id="rosterImportCsv" placeholder="LastName,FirstName,Grade,Section,LunchPIN,StudentID" rows="6" style="width:100%; padding:11px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; margin-bottom:8px; font-family:monospace; font-size:12px;"></textarea>
+          <button class="primaryBtn" id="previewRosterBtn">Preview Import</button>
+          <div id="rosterPreviewResult" style="margin-top:16px; display:none;">
+            <div class="statRow">
+              <div class="statBox"><div class="n mono" id="rosterReadyCount">0</div><div class="l">READY TO IMPORT</div></div>
+              <div class="statBox"><div class="n mono" id="rosterReviewCount">0</div><div class="l">NEED REVIEW</div></div>
+            </div>
+            <div id="rosterReviewList" style="margin-bottom:12px;"></div>
+            <button class="primaryBtn" id="applyRosterBtn">Apply Ready Rows</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sectionLabel">SCHEDULE RE-IMPORT</div>
+          <div style="color:#7C8AA8; font-size:12.5px; margin-bottom:12px;">
+            Paste next year's raw schedule export as values into a tab named exactly <strong>Schedule Raw Import</strong> in this spreadsheet first, then preview here. The live Schedule tab is never touched until you explicitly apply.
+          </div>
+          <button class="primaryBtn" id="previewScheduleBtn">Preview Schedule Import</button>
+          <div id="schedulePreviewResult" style="margin-top:16px; display:none;">
+            <div class="statRow">
+              <div class="statBox"><div class="n mono" id="scheduleRowCount">0</div><div class="l">ROWS PARSED</div></div>
+              <div class="statBox"><div class="n mono" id="scheduleSectionCount">0</div><div class="l">SECTIONS FOUND</div></div>
+            </div>
+            <div style="font-size:12px; color:#7C8AA8; margin-bottom:8px;">Sections found: <span id="scheduleSectionsList"></span></div>
+            <div id="scheduleSampleRows" style="max-height:200px; overflow-y:auto; margin-bottom:12px;"></div>
+            <button class="primaryBtn" id="applyScheduleBtn">Apply — Replace Live Schedule Tab</button>
+          </div>
         </div>
       </div>
 
@@ -517,7 +643,12 @@ async function activateDevice() {
   }
 }
 
+// ---- Gear icon: opens directly, no PIN needed for General Settings ----
 document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsModal').classList.add('show');
+});
+document.getElementById('adminSettingsLocked').style.display = 'block';
+document.getElementById('unlockAdminSettingsBtn').addEventListener('click', () => {
   settingsGateBoxes.clear();
   document.getElementById('settingsPinError').style.display = 'none';
   document.getElementById('settingsPinGate').style.display = 'flex';
@@ -526,7 +657,8 @@ const settingsGateBoxes = wirePinBoxes('pinBoxesSettingsGate', async (pin) => {
   const res = await apiGet('checkAdminPin', { pin });
   if (res.valid) {
     document.getElementById('settingsPinGate').style.display = 'none';
-    document.getElementById('settingsModal').classList.add('show');
+    document.getElementById('adminSettingsLocked').style.display = 'none';
+    document.getElementById('adminSettingsUnlocked').style.display = 'block';
   } else {
     document.getElementById('settingsPinError').style.display = 'block';
     settingsGateBoxes.clear();
@@ -538,18 +670,64 @@ document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   document.getElementById('settingsModal').classList.remove('show');
 });
 
+// ---- General Settings: colorblind mode + vibration, plain localStorage prefs ----
+const prefColorblind = document.getElementById('prefColorblind');
+const prefVibration = document.getElementById('prefVibration');
+prefColorblind.checked = localStorage.getItem('hallpass_pref_colorblind') === '1';
+prefVibration.checked = localStorage.getItem('hallpass_pref_vibration') === '1';
+document.body.classList.toggle('colorblind-mode', prefColorblind.checked);
+prefColorblind.addEventListener('change', () => {
+  localStorage.setItem('hallpass_pref_colorblind', prefColorblind.checked ? '1' : '0');
+  document.body.classList.toggle('colorblind-mode', prefColorblind.checked);
+});
+prefVibration.addEventListener('change', () => {
+  localStorage.setItem('hallpass_pref_vibration', prefVibration.checked ? '1' : '0');
+});
+function vibrateIfEnabled() {
+  if (localStorage.getItem('hallpass_pref_vibration') === '1' && navigator.vibrate) navigator.vibrate(60);
+}
+
+document.getElementById('logOutDeviceBtn').addEventListener('click', () => {
+  if (!confirm('This clears the saved Staff, Admin, and Hall Monitor PINs on this device (not the setup key or your assigned room). Continue?')) return;
+  localStorage.removeItem('hallpass_staff_pin');
+  localStorage.removeItem('hallpass_admin_pin');
+  localStorage.removeItem('hallpass_hallmonitor_pin');
+  location.reload();
+});
+
+
 function api() { return apiUrlInput.value.trim(); }
 function apiKey() { return apiKeyInput.value.trim(); }
+
+// Retries a fetch-returning function twice more with a short backoff
+// before giving up — a single hiccup shouldn't surface a scary error to a
+// student mid-passing-period; most transient failures resolve on a quick
+// second try.
+async function fetchWithRetry(fn, attempts) {
+  attempts = attempts || 3;
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise(res => setTimeout(res, 300 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
 
 async function apiGet(action, params) {
   if (!api() || !apiKey()) { flashCamStatusSafe('Set your API URL and key in Settings first.'); throw new Error('no_api_config'); }
   try {
-    const url = new URL(api());
-    url.searchParams.set('action', action);
-    url.searchParams.set('key', apiKey());
-    Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString());
-    return await res.json();
+    return await fetchWithRetry(async () => {
+      const url = new URL(api());
+      url.searchParams.set('action', action);
+      url.searchParams.set('key', apiKey());
+      Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url.toString());
+      return await res.json();
+    });
   } catch (err) {
     flashCamStatusSafe('Could not reach the server: ' + err.message);
     throw err;
@@ -558,12 +736,14 @@ async function apiGet(action, params) {
 async function apiPost(body) {
   if (!api() || !apiKey()) { flashCamStatusSafe('Set your API URL and key in Settings first.'); throw new Error('no_api_config'); }
   try {
-    const res = await fetch(api(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ key: apiKey() }, body))
+    return await fetchWithRetry(async () => {
+      const res = await fetch(api(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(Object.assign({ key: apiKey() }, body))
+      });
+      return await res.json();
     });
-    return await res.json();
   } catch (err) {
     flashCamStatusSafe('Could not reach the server: ' + err.message);
     throw err;
@@ -757,8 +937,20 @@ document.querySelectorAll('nav button').forEach(btn => {
 let currentStudent = null, selectedTeacher = null, selectedReason = null, teachers = [];
 let cooldownUntil = 0;
 
-const REASONS = ['Bathroom', 'Drink', 'Nurse', 'Locker', 'Main Office', 'Behavior Specialist', 'Counselor', 'Other'];
+const REASONS = ['Drink', 'Nurse', 'Locker', 'Main Office', 'Behavior Specialist', 'Counselor', 'Other'];
 function renderReasons() {
+  // Bathroom gets its own full-width button, separate from the grid of
+  // the other seven — real historical usage was ~75% Bathroom, so it
+  // deserves the fastest possible tap, not an equal-sized grid cell
+  // competing with reasons that account for a fraction of a percent each.
+  const bathroomBtn = document.getElementById('bathroomBtn');
+  bathroomBtn.onclick = () => {
+    selectedReason = 'Bathroom';
+    document.querySelectorAll('.reasonBtn, #bathroomBtn').forEach(b => b.classList.remove('selected'));
+    bathroomBtn.classList.add('selected');
+    updateConfirmEnabled();
+  };
+
   const el = document.getElementById('reasonGrid');
   el.innerHTML = '';
   REASONS.forEach(r => {
@@ -766,7 +958,7 @@ function renderReasons() {
     btn.className = 'reasonBtn'; btn.textContent = r;
     btn.addEventListener('click', () => {
       selectedReason = r;
-      document.querySelectorAll('.reasonBtn').forEach(b => b.classList.remove('selected'));
+      document.querySelectorAll('.reasonBtn, #bathroomBtn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       updateConfirmEnabled();
     });
@@ -855,6 +1047,7 @@ async function tick() {
 // it worked": the visual confirmation is now decoupled from how long the
 // lookup takes, so there's no ambiguous holding-it-up-longer-than-needed gap.
 function flashCaptured() {
+  vibrateIfEnabled();
   const wrap = document.getElementById('videoWrap');
   wrap.classList.add('flash');
   setTimeout(() => wrap.classList.remove('flash'), 400);
@@ -1144,17 +1337,19 @@ async function refreshClassAttendance() {
   document.getElementById('classAbsentCount').textContent = res.counts.absent;
 
   const stateMeta = {
-    present:      { label: 'Present',      color: '#4ADE80', bg: 'rgba(74,222,128,0.08)' },
-    running_late: { label: 'Running late', color: '#F5B942', bg: 'rgba(245,158,11,0.08)' },
-    elsewhere:    { label: 'Elsewhere',    color: '#60A5FA', bg: 'rgba(96,165,250,0.08)' },
-    absent:       { label: 'Absent',       color: '#FF6B7F', bg: 'rgba(143,0,24,0.08)' }
+    present:      { label: 'Present',      color: '#4ADE80', bg: 'rgba(74,222,128,0.08)', icon: '✓' },
+    running_late: { label: 'Running late', color: '#F5B942', bg: 'rgba(245,158,11,0.08)', icon: '⏱' },
+    elsewhere:    { label: 'Elsewhere',    color: '#60A5FA', bg: 'rgba(96,165,250,0.08)', icon: '↗' },
+    absent:       { label: 'Absent',       color: '#FF6B7F', bg: 'rgba(143,0,24,0.08)', icon: '✕' }
   };
   document.getElementById('classRosterList').innerHTML = res.students.map(s => {
     const m = stateMeta[s.state];
     return `<div class="whoRow" style="background:${m.bg}; cursor:pointer;" data-teachersnap="${s.name}">
       <div class="avatar mono">${initials(s.name)}</div>
       <div style="flex:1;"><div style="font-weight:700;">${s.name}</div>${s.detail ? `<div class="whoMeta">${s.detail}</div>` : ''}</div>
-      <div style="font-weight:700; font-size:12px; color:${m.color};">${m.label}</div>
+      <div style="font-weight:700; font-size:var(--text-sm); color:${m.color}; display:flex; align-items:center; gap:5px;">
+        <span class="statusIcon" style="display:none;">${m.icon}</span>${m.label}
+      </div>
       ${s.state !== 'present' ? `<button class="markPresentBtn" data-name="${s.name}" style="margin-left:10px; padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; cursor:pointer;">Mark present</button>` : ''}
     </div>`;
   }).join('');
@@ -1236,6 +1431,7 @@ async function tickAtt() {
 // next kid — no confirmation step, since speed through the line is the
 // entire point of this mode.
 async function handleAttendanceName(name) {
+  vibrateIfEnabled();
   const res = await apiPost({ action: 'bagCheckScan', pin: staffPin, name });
   if (res.success) showToast(res.name, 'Checked in', true);
   else if (res.alreadyIn) showToast(res.name, 'Already checked in', true);
@@ -1371,8 +1567,21 @@ document.querySelectorAll('[data-adminsub]').forEach(btn => {
     btn.classList.add('active');
     document.querySelectorAll('.adminSubView').forEach(v => v.style.display = 'none');
     document.getElementById('adminSub-' + btn.dataset.adminsub).style.display = 'block';
+    if (btn.dataset.adminsub === 'dataimport') refreshImportFreshness();
   });
 });
+function formatFreshness(iso) {
+  if (!iso) return 'never';
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d) / 86400000);
+  const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
+  return d.toLocaleDateString() + ' (' + when + ')';
+}
+async function refreshImportFreshness() {
+  const res = await apiGet('getImportFreshness', { pin: adminPin });
+  document.getElementById('lastRosterImportText').textContent = formatFreshness(res.lastRosterImport);
+  document.getElementById('lastScheduleImportText').textContent = formatFreshness(res.lastScheduleImport);
+}
 
 function renderAdminSummary(d) {
   document.getElementById('adminPassesToday').textContent = d.passesToday || 0;
@@ -1413,9 +1622,24 @@ function renderMonitor() {
   }).join('');
   listEl.querySelectorAll('.endPassBtn').forEach(btn => btn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await apiPost({ action: 'adminEndPass', pin: adminPin, name: btn.dataset.name });
-    showToast(btn.dataset.name, 'Pass ended by admin', true);
-    refreshMonitor();
+    const name = btn.dataset.name;
+    const row = btn.closest('.whoRow');
+    // Optimistic: remove the row and update the count immediately, before
+    // the network confirms — waiting for a 300-800ms round-trip on every
+    // single click is the difference between software that feels instant
+    // and software that feels like it's thinking. Revert only on failure.
+    const removedIndex = monitorData.findIndex(s => s.name === name);
+    const removed = removedIndex > -1 ? monitorData.splice(removedIndex, 1)[0] : null;
+    if (row) row.remove();
+    showToast(name, 'Pass ended by admin', true);
+    try {
+      const res = await apiPost({ action: 'adminEndPass', pin: adminPin, name });
+      if (!res.success) throw new Error(res.error || 'failed');
+    } catch (err) {
+      if (removed) monitorData.push(removed);
+      renderMonitor();
+      showToast('Could not end pass', 'Reverted — try again.', false);
+    }
   }));
   listEl.querySelectorAll('[data-snapshot]').forEach(row => row.addEventListener('click', () => openSnapshot(row.dataset.snapshot)));
 }
@@ -1501,11 +1725,11 @@ function renderOccupancyLevel() {
           <div style="font-weight:700; font-size:15px;">Grade ${g.grade} <span class="whoMeta">(${g.sectionCount} sections)</span></div>
           <div style="font-weight:700; color:${color};">${pct}%</div>
         </div>
-        <div style="display:flex; gap:6px; font-size:10px; font-weight:700;">
+        <div style="display:flex; gap:6px; font-size:var(--text-xs); font-weight:700;">
           <span style="color:#4ADE80;">${g.counts.present} in</span>
           <span style="color:#F5B942;">${g.counts.runningLate} late</span>
           <span style="color:#60A5FA;">${g.counts.elsewhere} out</span>
-          <span style="color:#FF6B7F;">${g.counts.absent} absent</span>
+          <span style="color:#FF6B7F; ${g.counts.absent > 0 ? 'font-size:13px; padding:1px 6px; background:rgba(255,107,127,0.15); border-radius:6px;' : ''}">${g.counts.absent} absent</span>
         </div>
       </div>`;
     }).join('');
@@ -1524,11 +1748,11 @@ function renderOccupancyLevel() {
           <div style="font-weight:700; font-family:'Space Grotesk',monospace;">${s.section}</div>
           <div style="font-weight:700; color:${color};">${pct}%</div>
         </div>
-        <div style="display:flex; gap:6px; font-size:10px; font-weight:700;">
+        <div style="display:flex; gap:6px; font-size:var(--text-xs); font-weight:700;">
           <span style="color:#4ADE80;">${s.counts.present} in</span>
           <span style="color:#F5B942;">${s.counts.runningLate} late</span>
           <span style="color:#60A5FA;">${s.counts.elsewhere} out</span>
-          <span style="color:#FF6B7F;">${s.counts.absent} absent</span>
+          <span style="color:#FF6B7F; ${s.counts.absent > 0 ? 'font-size:13px; padding:1px 6px; background:rgba(255,107,127,0.15); border-radius:6px;' : ''}">${s.counts.absent} absent</span>
         </div>
       </div>`;
     }).join('');
@@ -1541,10 +1765,10 @@ document.getElementById('occupancyBackBtn').addEventListener('click', () => {
 });
 
 const stateMetaAdmin = {
-  present: { label: 'Present', color: '#4ADE80' },
-  running_late: { label: 'Running late', color: '#F5B942' },
-  elsewhere: { label: 'Elsewhere', color: '#60A5FA' },
-  absent: { label: 'Absent', color: '#FF6B7F' }
+  present: { label: 'Present', color: '#4ADE80', icon: '✓' },
+  running_late: { label: 'Running late', color: '#F5B942', icon: '⏱' },
+  elsewhere: { label: 'Elsewhere', color: '#60A5FA', icon: '↗' },
+  absent: { label: 'Absent', color: '#FF6B7F', icon: '✕' }
 };
 async function openSectionRoster(section) {
   const res = await apiGet('getSectionDetail', { pin: adminPin, section });
@@ -1554,7 +1778,9 @@ async function openSectionRoster(section) {
     return `<div class="whoRow" style="cursor:pointer;" data-snapshot="${s.name}">
       <div class="avatar mono">${initials(s.name)}</div>
       <div style="flex:1;"><div style="font-weight:700;">${s.name}</div>${s.detail ? `<div class="whoMeta">${s.detail}</div>` : ''}</div>
-      <div style="font-weight:700; font-size:12px; color:${m.color};">${m.label}</div>
+      <div style="font-weight:700; font-size:var(--text-sm); color:${m.color}; display:flex; align-items:center; gap:5px;">
+        <span class="statusIcon" style="display:none;">${m.icon}</span>${m.label}
+      </div>
     </div>`;
   }).join('');
   document.querySelectorAll('#sectionRosterList [data-snapshot]').forEach(row =>
@@ -1571,8 +1797,16 @@ async function refreshEncounters() {
       <button class="removeEncounterBtn" data-id="${p.id}" style="padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; cursor:pointer;">Remove</button>
     </div>`).join('') || '<div class="whoMeta">No blocked pairs yet.</div>';
   document.querySelectorAll('.removeEncounterBtn').forEach(btn => btn.addEventListener('click', async () => {
-    await apiPost({ action: 'removeEncounterPair', pin: adminPin, id: btn.dataset.id });
-    refreshEncounters();
+    const row = btn.closest('.whoRow');
+    if (row) row.style.display = 'none'; // optimistic — hide immediately, refresh will confirm or a failure will restore it
+    try {
+      const res = await apiPost({ action: 'removeEncounterPair', pin: adminPin, id: btn.dataset.id });
+      if (!res.success) throw new Error('failed');
+      refreshEncounters();
+    } catch (err) {
+      if (row) row.style.display = '';
+      showToast('Could not remove', 'Try again.', false);
+    }
   }));
 }
 document.getElementById('addEncounterBtn').addEventListener('click', async () => {
@@ -1643,11 +1877,83 @@ document.getElementById('snapshotEndPassBtn').addEventListener('click', async ()
   refreshMonitor();
 });
 document.getElementById('snapshotRestoreBtn').addEventListener('click', async () => {
-  await apiPost({ action: 'restoreLimit', pin: adminPin, name: snapshotCurrentName });
-  showToast(snapshotCurrentName, 'Limit restored', true);
-  openSnapshot(snapshotCurrentName);
+  showToast(snapshotCurrentName, 'Limit restored', true); // optimistic — this basically always succeeds and the modal re-opens right after anyway
+  try {
+    await apiPost({ action: 'restoreLimit', pin: adminPin, name: snapshotCurrentName });
+  } finally {
+    openSnapshot(snapshotCurrentName);
+  }
 });
 document.getElementById('snapshotCloseBtn').addEventListener('click', () => { document.getElementById('snapshotModal').style.display = 'none'; });
+
+// ---- DATA IMPORT (yearly refresh tools) ----
+document.getElementById('downloadRosterTemplateBtn').addEventListener('click', async () => {
+  const res = await apiGet('getRosterImportTemplate', { pin: adminPin });
+  const blob = new Blob([res.csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'roster-import-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+let rosterPreviewReady = [];
+document.getElementById('previewRosterBtn').addEventListener('click', async () => {
+  const csv = document.getElementById('rosterImportCsv').value.trim();
+  if (!csv) { showToast('Nothing to preview', 'Paste CSV data first.', false); return; }
+  const res = await apiPost({ action: 'previewRosterImport', pin: adminPin, csv });
+  if (res.error) { showToast('Import error', res.error, false); return; }
+  rosterPreviewReady = res.ready || [];
+  document.getElementById('rosterPreviewResult').style.display = 'block';
+  document.getElementById('rosterReadyCount').textContent = res.readyCount;
+  document.getElementById('rosterReviewCount').textContent = res.needsReviewCount;
+  document.getElementById('rosterReviewList').innerHTML = (res.needsReview || []).map(r => `
+    <div class="whoRow" style="background:rgba(239,68,68,0.06);">
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:13px;">${r.lastName || '?'}, ${r.firstName || '?'} (line ${r.lineNumber})</div>
+        <div class="whoMeta" style="color:#FF6B7F;">${r.issues.join(' · ')}</div>
+      </div>
+    </div>`).join('');
+});
+document.getElementById('applyRosterBtn').addEventListener('click', async () => {
+  if (rosterPreviewReady.length === 0) { showToast('Nothing to apply', 'No ready rows in the last preview.', false); return; }
+  const res = await apiPost({ action: 'applyRosterImport', pin: adminPin, rows: JSON.stringify(rosterPreviewReady) });
+  if (res.success) {
+    showToast('Roster updated', res.added + ' added, ' + res.updated + ' updated', true);
+    document.getElementById('rosterImportCsv').value = '';
+    document.getElementById('rosterPreviewResult').style.display = 'none';
+    rosterPreviewReady = [];
+    refreshImportFreshness();
+  }
+});
+
+let schedulePreviewRows = [];
+document.getElementById('previewScheduleBtn').addEventListener('click', async () => {
+  const res = await apiGet('previewScheduleImport', { pin: adminPin });
+  if (res.error) { showToast('Import error', res.error, false); return; }
+  schedulePreviewRows = res.rows || [];
+  document.getElementById('schedulePreviewResult').style.display = 'block';
+  document.getElementById('scheduleRowCount').textContent = res.count;
+  document.getElementById('scheduleSectionCount').textContent = res.sectionCount;
+  document.getElementById('scheduleSectionsList').textContent = (res.distinctSections || []).join(', ') || 'none found';
+  document.getElementById('scheduleSampleRows').innerHTML = schedulePreviewRows.slice(0, 40).map(r => `
+    <div class="whoRow" style="padding:8px 12px;">
+      <div style="flex:1; font-size:12px;">
+        <strong>${r.section}</strong> · ${r.start}–${r.end} · Day ${r.day} · ${r.class} · ${r.teacher}
+      </div>
+    </div>`).join('') + (schedulePreviewRows.length > 40 ? `<div class="whoMeta" style="padding:8px 12px;">…and ${schedulePreviewRows.length - 40} more rows</div>` : '');
+});
+document.getElementById('applyScheduleBtn').addEventListener('click', async () => {
+  if (schedulePreviewRows.length === 0) { showToast('Nothing to apply', 'Preview first.', false); return; }
+  if (!confirm('This replaces the entire live Schedule tab with these ' + schedulePreviewRows.length + ' rows. Continue?')) return;
+  const res = await apiPost({ action: 'applyScheduleImport', pin: adminPin, rows: JSON.stringify(schedulePreviewRows) });
+  if (res.success) {
+    showToast('Schedule updated', res.count + ' rows written', true);
+    document.getElementById('schedulePreviewResult').style.display = 'none';
+    schedulePreviewRows = [];
+    refreshImportFreshness();
+  }
+});
 
 async function refreshAdmin() {
   if (!adminPin) return;
@@ -1665,16 +1971,30 @@ async function refreshAdmin() {
   document.querySelectorAll('#frequentFlyersList [data-snapshot], #coOccurrenceList [data-snapshot]').forEach(el =>
     el.addEventListener('click', () => openSnapshot(el.dataset.snapshot)));
   document.getElementById('notificationsList').innerHTML = (notifs.notifications || []).slice(0, 20).map(n => `
-    <div class="notif ${n.status === 'unread' ? 'unread' : ''}">
-      <div style="font-weight:700; font-size:13px;">${n.title}</div>
+    <div class="notif ${n.status === 'unread' ? 'unread' : ''}" data-notif-id="${n.id}">
+      <div style="font-weight:700; font-size:var(--text-base);">${n.title}</div>
       <div class="whoMeta" style="margin:4px 0 8px;">${n.detail}</div>
       ${n.status === 'unread' ? `<button class="ghostBtn ackBtn" data-id="${n.id}" style="width:auto;display:inline-block;background:rgba(255,255,255,0.08);color:#fff;padding:6px 12px;border-radius:8px;">Acknowledge</button>` : `<span class="whoMeta">${n.status}</span>`}
     </div>`).join('') || '<div class="whoMeta">Nothing yet.</div>';
   document.querySelectorAll('.ackBtn').forEach(btn => btn.addEventListener('click', async () => {
-    await apiPost({ action: 'acknowledgeNotification', pin: adminPin, id: btn.dataset.id });
-    refreshAdmin();
+    const notifEl = btn.closest('.notif');
+    // Optimistic: swap the button for "acknowledged" text immediately.
+    if (notifEl) { notifEl.classList.remove('unread'); btn.outerHTML = '<span class="whoMeta">acknowledged</span>'; }
+    try {
+      const res = await apiPost({ action: 'acknowledgeNotification', pin: adminPin, id: btn.dataset.id });
+      if (!res.success) throw new Error('failed');
+    } catch (err) {
+      refreshAdmin(); // fall back to a real refresh if the optimistic guess was wrong
+    }
   }));
 }
+document.getElementById('markAllReadBtn').addEventListener('click', async () => {
+  const unreadBtns = Array.from(document.querySelectorAll('.ackBtn'));
+  if (unreadBtns.length === 0) return;
+  unreadBtns.forEach(btn => { const el = btn.closest('.notif'); if (el) el.classList.remove('unread'); btn.outerHTML = '<span class="whoMeta">acknowledged</span>'; });
+  await Promise.all(unreadBtns.map(btn => apiPost({ action: 'acknowledgeNotification', pin: adminPin, id: btn.dataset.id }).catch(() => {})));
+  showToast('Notifications cleared', unreadBtns.length + ' marked read', true);
+});
 </script>
 </body>
 </html>
