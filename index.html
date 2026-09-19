@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>SANY Hall Pass</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -60,8 +63,10 @@
   #videoWrap.flash::after { content: ''; position: absolute; inset: 0; background: rgba(74,222,128,0.35); animation: flashFade 0.4s ease forwards; pointer-events: none; }
   @keyframes flashFade { from { opacity: 1; } to { opacity: 0; } }
 
-  .pinBoxes { display: flex; gap: 8px; margin-top: 10px; }
-  .pinBoxes input { flex: 1; min-width: 0; aspect-ratio: 1/1.15; text-align: center; font-size: 20px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; }
+  .pinBoxes { position: relative; display: flex; gap: 8px; margin-top: 10px; }
+  .pinBoxes .pinCell { flex: 1; min-width: 0; aspect-ratio: 1/1.15; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; }
+  .pinBoxes .pinCell.filled { border-color: var(--accent); }
+  .pinBoxes .pinRealInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; padding: 0; margin: 0; font-size: 16px; /* 16px+ prevents iOS auto-zoom-on-focus */ }
 
   .sectionLabel { font-size: 11px; font-weight: 700; color: #7C8AA8; letter-spacing: 0.04em; margin-bottom: 8px; }
   .whoRow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
@@ -121,8 +126,8 @@
   <div class="modalCard">
     <h3>Admin PIN required</h3>
     <div class="pinBoxes" id="pinBoxesSettingsGate" style="max-width:220px; margin:16px auto;">
-      <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-      <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+      <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+      <input class="pinRealInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
     </div>
     <div id="settingsPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;text-align:center;">Incorrect PIN.</div>
   </div>
@@ -153,9 +158,8 @@
         <span class="statusPill" id="camStatus">Requesting camera…</span>
         <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
         <div class="pinBoxes" id="pinBoxes">
-          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-          <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-          <input maxlength="1" inputmode="numeric">
+          <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+          <input class="pinRealInput" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
         </div>
       </div>
 
@@ -183,9 +187,9 @@
     </div>
 
     <div class="card" style="margin-top:20px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
         <div class="sectionLabel" style="margin:0;">WHO'S OUT RIGHT NOW</div>
-        <input id="kioskTeacherFilter" placeholder="Filter to one teacher…" style="width:220px; padding:7px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:12px;">
+        <input id="kioskTeacherFilter" placeholder="Filter to one teacher…" style="flex:1; min-width:160px; max-width:220px; padding:7px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:12px;">
       </div>
       <div id="kioskWhoRows"></div>
       <div id="kioskWhoEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">Nobody's out right now.</div>
@@ -197,8 +201,8 @@
     <div id="attendanceGate" class="pinGate">
       <div style="font-size:18px;font-weight:700;">Staff PIN required</div>
       <div class="pinBoxes" id="pinBoxesAttGate" style="max-width:220px; margin:16px auto;">
-        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+        <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+        <input class="pinRealInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
       </div>
       <div id="attendancePinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
     </div>
@@ -256,9 +260,8 @@
           <span class="statusPill" id="camStatusAtt">Requesting camera…</span>
           <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
           <div class="pinBoxes" id="pinBoxesAtt">
-            <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-            <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-            <input maxlength="1" inputmode="numeric">
+            <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+            <input class="pinRealInput" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
           </div>
         </div>
       </div>
@@ -295,32 +298,88 @@
     <div id="adminGate" class="pinGate">
       <div style="font-size:18px;font-weight:700;">Admin PIN required</div>
       <div class="pinBoxes" id="pinBoxesAdminGate" style="max-width:220px; margin:16px auto;">
-        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
-        <input maxlength="1" inputmode="numeric"><input maxlength="1" inputmode="numeric">
+        <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+        <input class="pinRealInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
       </div>
       <div id="adminPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
     </div>
     <div id="adminApp" style="display:none;">
-      <div class="statRow">
-        <div class="statBox"><div class="n mono" id="adminPassesToday">0</div><div class="l">PASSES TODAY</div></div>
-        <div class="statBox"><div class="n mono" id="adminOutNow">0</div><div class="l">OUT NOW</div></div>
-        <div class="statBox"><div class="n mono" id="adminAvgDuration">0</div><div class="l">AVG MIN</div></div>
-        <div class="statBox"><div class="n mono" id="adminDayType">—</div><div class="l">DAY TYPE</div></div>
+
+      <div style="display:flex; gap:4px; background:rgba(255,255,255,0.05); border-radius:12px; padding:4px; margin-bottom:20px; width:fit-content; flex-wrap:wrap;">
+        <button class="attSubTab active" data-adminsub="monitor">Hall Monitor</button>
+        <button class="attSubTab" data-adminsub="encounters">Encounter Prevention</button>
+        <button class="attSubTab" data-adminsub="insights">Insights</button>
+        <button class="attSubTab" data-adminsub="notifications">Notifications</button>
       </div>
-      <div class="grid2">
-        <div class="card">
-          <div class="sectionLabel">FREQUENT FLYERS · LAST 7 DAYS</div>
-          <div id="frequentFlyersList"></div>
+
+      <!-- ---- HALL MONITOR ---- -->
+      <div class="adminSubView active" id="adminSub-monitor">
+        <div class="statRow">
+          <div class="statBox"><div class="n mono" id="adminPassesToday">0</div><div class="l">PASSES TODAY</div></div>
+          <div class="statBox"><div class="n mono" id="adminOutNow">0</div><div class="l">OUT NOW</div></div>
+          <div class="statBox"><div class="n mono" id="adminAvgDuration">0</div><div class="l">AVG MIN</div></div>
+          <div class="statBox"><div class="n mono" id="adminDayType">—</div><div class="l">DAY TYPE</div></div>
         </div>
         <div class="card">
-          <div class="sectionLabel">PATTERN FLAGS</div>
-          <div id="coOccurrenceList"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+            <input id="monitorSearch" placeholder="Search by student or destination…" style="flex:1; min-width:200px; padding:9px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:13px;">
+            <button id="exportCsvBtn" style="padding:9px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">Export CSV</button>
+          </div>
+          <div id="monitorList"></div>
+          <div id="monitorEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">Nobody's out right now.</div>
         </div>
       </div>
-      <div class="card" style="margin-top:20px;">
-        <div class="sectionLabel">NOTIFICATIONS</div>
-        <div id="notificationsList"></div>
+
+      <!-- ---- ENCOUNTER PREVENTION ---- -->
+      <div class="adminSubView" id="adminSub-encounters" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sectionLabel">BLOCK A PAIR</div>
+          <div style="color:#7C8AA8; font-size:12.5px; margin-bottom:12px;">If either student currently has an open pass, the other will be blocked from signing out — in both directions, in real time.</div>
+          <input id="encounterA" placeholder="Student A (Last, First)" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+          <input id="encounterB" placeholder="Student B (Last, First)" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+          <input id="encounterReason" placeholder="Reason (optional, for your own records)" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;margin-bottom:8px;">
+          <button class="primaryBtn" id="addEncounterBtn">Add Blocked Pair</button>
+        </div>
+        <div class="card"><div class="sectionLabel">CURRENTLY BLOCKED PAIRS</div><div id="encounterList"></div></div>
       </div>
+
+      <!-- ---- INSIGHTS ---- -->
+      <div class="adminSubView" id="adminSub-insights" style="display:none;">
+        <div class="grid2">
+          <div class="card">
+            <div class="sectionLabel">FREQUENT FLYERS · LAST 7 DAYS</div>
+            <div id="frequentFlyersList"></div>
+          </div>
+          <div class="card">
+            <div class="sectionLabel">PATTERN FLAGS</div>
+            <div id="coOccurrenceList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- NOTIFICATIONS ---- -->
+      <div class="adminSubView" id="adminSub-notifications" style="display:none;">
+        <div class="card">
+          <div class="sectionLabel">NOTIFICATIONS</div>
+          <div id="notificationsList"></div>
+        </div>
+      </div>
+
+      <!-- ---- STUDENT SNAPSHOT MODAL ---- -->
+      <div id="snapshotModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:100; padding:20px;">
+        <div class="modalCard" style="max-width:480px; max-height:80vh; overflow-y:auto;">
+          <h3 id="snapshotName">Student</h3>
+          <div id="snapshotMeta" class="whoMeta" style="margin-bottom:16px;"></div>
+          <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <button id="snapshotEndPassBtn" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--accent); color:#fff; font-weight:700; font-size:12px; cursor:pointer; display:none;">End Pass Now</button>
+            <button id="snapshotRestoreBtn" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#C7CEE0; font-weight:700; font-size:12px; cursor:pointer;">Restore Limit to 3</button>
+          </div>
+          <div class="sectionLabel">RECENT PASSES</div>
+          <div id="snapshotHistory"></div>
+          <button class="ghostBtn" id="snapshotCloseBtn" style="margin-top:12px;">Close</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -350,7 +409,7 @@
 // temporarily pointing one device elsewhere) — it's optional, not required.
 // ============================================================
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwLIeUS2CvDd8ykGAzOL1iIhREZl4AbR5qiKcDg8595EJNEyrkJSU9mnNebfeWHHPvh4Q/exec';
-const DEFAULT_API_KEY = 'sany-hp-7x2m9qzb4k'; // <-- put your actual Script Properties API_KEY value here before deploying
+const DEFAULT_API_KEY = 'PASTE_YOUR_REAL_API_KEY_HERE'; // <-- put your actual Script Properties API_KEY value here before deploying
 
 const apiUrlInput = document.getElementById('apiUrl');
 const apiKeyInput = document.getElementById('apiKey');
@@ -442,30 +501,41 @@ function showReject(big, sub) {
   setTimeout(() => document.getElementById('rejectOverlay').classList.remove('show'), 6000);
 }
 
-// Shared auto-advance PIN box wiring — every fixed-length PIN entry in the
-// app (kiosk lunch PIN, bag-check PIN, staff/admin/settings PINs) uses this
-// same pattern: type a digit, jump forward automatically; fill the last box
-// (or hit Enter) and it submits immediately, no separate button tap needed.
+// Shared PIN entry — a single real (invisible) input captures all typing
+// normally, exactly like any other text field, while separate divs beneath
+// it just display what's been typed so far. This replaces an earlier
+// multi-input-with-JS-focus-jumping approach that was unreliable on mobile
+// virtual keyboards (the keyboard and the JS-driven focus changes would
+// race each other, dropping or misordering digits). One real input means
+// nothing to race against — mobile keyboards handle it exactly as
+// reliably as typing into any other form field.
 function wirePinBoxes(containerId, onSubmit) {
-  const boxes = Array.from(document.querySelectorAll('#' + containerId + ' input'));
-  boxes.forEach((box, i) => {
-    box.addEventListener('input', () => {
-      box.value = box.value.replace(/[^0-9]/g, '');
-      if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
-      trySubmit();
+  const container = document.getElementById(containerId);
+  const cells = Array.from(container.querySelectorAll('.pinCell'));
+  const input = container.querySelector('.pinRealInput');
+  const length = cells.length;
+
+  function render() {
+    const val = input.value;
+    cells.forEach((cell, i) => {
+      cell.textContent = val[i] || '';
+      cell.classList.toggle('filled', !!val[i]);
     });
-    box.addEventListener('keydown', e => {
-      if (e.key === 'Backspace' && !box.value && i > 0) boxes[i - 1].focus();
-      if (e.key === 'Enter') trySubmit(true);
-    });
-  });
-  function trySubmit(forced) {
-    const value = boxes.map(b => b.value).join('');
-    if (value.length === boxes.length || (forced && value.length === boxes.length)) {
-      onSubmit(value);
-    }
   }
-  return { clear: () => { boxes.forEach(b => b.value = ''); boxes[0].focus(); }, focus: () => boxes[0].focus() };
+  input.addEventListener('input', () => {
+    input.value = input.value.replace(/[^0-9]/g, '').slice(0, length);
+    render();
+    if (input.value.length === length) onSubmit(input.value);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && input.value.length === length) onSubmit(input.value);
+  });
+  container.addEventListener('click', () => input.focus());
+
+  return {
+    clear: () => { input.value = ''; render(); input.focus(); },
+    focus: () => input.focus()
+  };
 }
 
 function initials(name) {
@@ -556,8 +626,23 @@ const camStatus = document.getElementById('camStatus');
 let lastDecoded = '', lastDecodedAt = 0;
 
 navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-  .then(stream => { video.srcObject = stream; camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok'; requestAnimationFrame(tick); })
+  .then(stream => {
+    video.srcObject = stream;
+    video.addEventListener('loadedmetadata', () => matchAspectRatio(video, 'videoWrap'), { once: true });
+    camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok'; requestAnimationFrame(tick);
+  })
   .catch(err => { camStatus.textContent = 'Camera failed: ' + err.name; camStatus.className = 'statusPill err'; });
+
+// Phone cameras are usually a much taller/narrower native ratio (e.g. 16:9
+// or higher) than the 4:3 the container was hardcoded to — forcing that
+// mismatch through object-fit:cover crops (and visually "zooms into") a
+// large chunk of the real frame. Matching the container to the stream's
+// actual ratio once it's known shows the real field of view instead.
+function matchAspectRatio(videoEl, wrapId) {
+  if (videoEl.videoWidth && videoEl.videoHeight) {
+    document.getElementById(wrapId).style.aspectRatio = videoEl.videoWidth + ' / ' + videoEl.videoHeight;
+  }
+}
 
 async function tick() {
   if (video.readyState === video.HAVE_ENOUGH_DATA && Date.now() > cooldownUntil) {
@@ -586,26 +671,7 @@ function flashCaptured() {
   camStatus.className = 'statusPill captured';
 }
 
-const kioskBoxes = Array.from(document.querySelectorAll('#pinBoxes input'));
-kioskBoxes.forEach((box, i) => {
-  box.addEventListener('input', () => {
-    box.value = box.value.replace(/[^0-9]/g, '');
-    if (box.value && i < kioskBoxes.length - 1) kioskBoxes[i + 1].focus();
-    trySubmitKioskPin();
-  });
-  box.addEventListener('keydown', e => {
-    if (e.key === 'Backspace' && !box.value && i > 0) kioskBoxes[i - 1].focus();
-    if (e.key === 'Enter') trySubmitKioskPin(true);
-  });
-});
-function trySubmitKioskPin(forced) {
-  const pin = kioskBoxes.map(b => b.value).join('');
-  if (pin.length === 5 || forced) {
-    if (pin.length !== 5) return;
-    identifyByPin(pin);
-    kioskBoxes.forEach(b => b.value = '');
-  }
-}
+const kioskPinBoxes = wirePinBoxes('pinBoxes', pin => { identifyByPin(pin); kioskPinBoxes.clear(); });
 
 async function identifyByName(text) { handleIdentifyResult(await apiGet('identifyAndStatus', { name: text }), text); }
 async function identifyByPin(pin) { handleIdentifyResult(await apiGet('identifyAndStatus', { pin }), pin); }
@@ -878,7 +944,11 @@ const ctxAtt = canvasAtt.getContext('2d', { willReadFrequently: true });
 let lastDecodedAtt = '', lastDecodedAttAt = 0;
 function startAttCamera() {
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(stream => { videoAtt.srcObject = stream; document.getElementById('camStatusAtt').textContent = 'Camera ready'; document.getElementById('camStatusAtt').className = 'statusPill ok'; requestAnimationFrame(tickAtt); })
+    .then(stream => {
+      videoAtt.srcObject = stream;
+      videoAtt.addEventListener('loadedmetadata', () => matchAspectRatio(videoAtt, 'videoWrapAttInner'), { once: true });
+      document.getElementById('camStatusAtt').textContent = 'Camera ready'; document.getElementById('camStatusAtt').className = 'statusPill ok'; requestAnimationFrame(tickAtt);
+    })
     .catch(err => { document.getElementById('camStatusAtt').textContent = 'Camera failed: ' + err.name; document.getElementById('camStatusAtt').className = 'statusPill err'; });
 }
 async function tickAtt() {
@@ -901,21 +971,11 @@ async function handleAttendanceName(name) {
   else showToast('No match', res.error || 'Unknown error', false);
   refreshAttStats();
 }
-const attBoxes = Array.from(document.querySelectorAll('#pinBoxesAtt input'));
-attBoxes.forEach((box, i) => {
-  box.addEventListener('input', () => { box.value = box.value.replace(/[^0-9]/g, ''); if (box.value && i < attBoxes.length - 1) attBoxes[i + 1].focus(); trySubmitAttPin(); });
-  box.addEventListener('keydown', e => { if (e.key === 'Backspace' && !box.value && i > 0) attBoxes[i - 1].focus(); if (e.key === 'Enter') trySubmitAttPin(true); });
+const attPinBoxes = wirePinBoxes('pinBoxesAtt', async pin => {
+  const lookup = await apiGet('lookupByPin', { pin });
+  if (lookup.found) handleAttendanceName(lookup.name); else showToast('No match', 'PIN: ' + pin, false);
+  attPinBoxes.clear();
 });
-async function trySubmitAttPin(forced) {
-  const pin = attBoxes.map(b => b.value).join('');
-  if (pin.length === 5 || forced) {
-    if (pin.length !== 5) return;
-    const lookup = await apiGet('lookupByPin', { pin });
-    if (lookup.found) handleAttendanceName(lookup.name); else showToast('No match', 'PIN: ' + pin, false);
-    attBoxes.forEach(b => b.value = '');
-    attBoxes[0].focus();
-  }
-}
 
 // ---- FIELD TRIPS (nested under Attendance, shares staffPin) ----
 let currentTripId = '', currentPhase = '';
@@ -974,7 +1034,11 @@ let lastDecodedTrip = '', lastDecodedTripAt = 0;
 function startTripCamera() {
   tripCameraStarted = true;
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(stream => { videoTrip.srcObject = stream; requestAnimationFrame(tickTrip); })
+    .then(stream => {
+      videoTrip.srcObject = stream;
+      videoTrip.addEventListener('loadedmetadata', () => matchAspectRatio(videoTrip, 'videoWrapTripInner'), { once: true });
+      requestAnimationFrame(tickTrip);
+    })
     .catch(err => showToast('Camera failed', err.name, false));
 }
 async function tickTrip() {
@@ -1019,15 +1083,129 @@ async function unlockAdmin(pin) {
   document.getElementById('adminApp').style.display = 'block';
   renderAdminSummary(res);
   refreshAdmin();
+  refreshMonitor();
+  refreshEncounters();
+  setInterval(refreshMonitor, 10000);
 }
 const savedAdminPin = localStorage.getItem('hallpass_admin_pin');
 if (savedAdminPin) unlockAdmin(savedAdminPin);
+
+// ---- Admin sub-tab switching ----
+document.querySelectorAll('[data-adminsub]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-adminsub]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.adminSubView').forEach(v => v.style.display = 'none');
+    document.getElementById('adminSub-' + btn.dataset.adminsub).style.display = 'block';
+  });
+});
+
 function renderAdminSummary(d) {
   document.getElementById('adminPassesToday').textContent = d.passesToday || 0;
   document.getElementById('adminOutNow').textContent = d.currentlyOut || 0;
   document.getElementById('adminAvgDuration').textContent = d.avgDurationMin || 0;
   document.getElementById('adminDayType').textContent = d.dayType || '—';
 }
+
+// ---- HALL MONITOR (live, clickable, searchable, exportable) ----
+let monitorData = [];
+async function refreshMonitor() {
+  const data = await apiGet('getWhosOutNow', {});
+  monitorData = data.students || [];
+  renderMonitor();
+  apiGet('getAdminSummary', { pin: adminPin }).then(renderAdminSummary);
+}
+function renderMonitor() {
+  const q = document.getElementById('monitorSearch').value.trim().toLowerCase();
+  const filtered = q ? monitorData.filter(s => s.name.toLowerCase().includes(q) || String(s.reason).toLowerCase().includes(q) || String(s.teacher).toLowerCase().includes(q)) : monitorData;
+  const listEl = document.getElementById('monitorList'), emptyEl = document.getElementById('monitorEmpty');
+  if (filtered.length === 0) { listEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = filtered.map(s => {
+    const atLimit = s.usedToday >= s.limit;
+    return `<div class="whoRow ${atLimit ? 'limitHit' : ''}" style="cursor:pointer;" data-snapshot="${s.name}">
+      <div class="avatar mono">${initials(s.name)}</div>
+      <div style="flex:1;"><div style="font-weight:700;">${s.name}</div><div class="whoMeta">Rm ${s.room || '—'} · ${s.teacher} · ${s.reason}</div></div>
+      <div class="timer mono" data-start="${s.timeOutIso}">${elapsed(s.timeOutIso)}</div>
+      <button class="endPassBtn" data-name="${s.name}" style="margin-left:12px; padding:7px 12px; border-radius:8px; border:1px solid rgba(239,68,68,0.4); background:rgba(239,68,68,0.1); color:#FF6B7F; font-size:11px; font-weight:700; cursor:pointer;">End Pass</button>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.endPassBtn').forEach(btn => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await apiPost({ action: 'adminEndPass', pin: adminPin, name: btn.dataset.name });
+    showToast(btn.dataset.name, 'Pass ended by admin', true);
+    refreshMonitor();
+  }));
+  listEl.querySelectorAll('[data-snapshot]').forEach(row => row.addEventListener('click', () => openSnapshot(row.dataset.snapshot)));
+}
+document.getElementById('monitorSearch').addEventListener('input', renderMonitor);
+document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+  const res = await apiGet('exportLogsCsv', { pin: adminPin });
+  const blob = new Blob([res.csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'hallpass-log-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ---- ENCOUNTER PREVENTION ----
+async function refreshEncounters() {
+  const res = await apiGet('getEncounterPairs', { pin: adminPin });
+  document.getElementById('encounterList').innerHTML = (res.pairs || []).map(p => `
+    <div class="whoRow">
+      <div style="flex:1;"><div style="font-weight:700;">${p.studentA} &amp; ${p.studentB}</div>${p.reason ? `<div class="whoMeta">${p.reason}</div>` : ''}</div>
+      <button class="removeEncounterBtn" data-id="${p.id}" style="padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; cursor:pointer;">Remove</button>
+    </div>`).join('') || '<div class="whoMeta">No blocked pairs yet.</div>';
+  document.querySelectorAll('.removeEncounterBtn').forEach(btn => btn.addEventListener('click', async () => {
+    await apiPost({ action: 'removeEncounterPair', pin: adminPin, id: btn.dataset.id });
+    refreshEncounters();
+  }));
+}
+document.getElementById('addEncounterBtn').addEventListener('click', async () => {
+  const a = document.getElementById('encounterA').value.trim();
+  const b = document.getElementById('encounterB').value.trim();
+  const reason = document.getElementById('encounterReason').value.trim();
+  if (!a || !b) { showToast('Missing info', 'Both students are required.', false); return; }
+  const res = await apiPost({ action: 'addEncounterPair', pin: adminPin, studentA: a, studentB: b, reason });
+  if (res.success) {
+    showToast('Pair blocked', a + ' & ' + b, true);
+    document.getElementById('encounterA').value = ''; document.getElementById('encounterB').value = ''; document.getElementById('encounterReason').value = '';
+    refreshEncounters();
+  }
+});
+
+// ---- STUDENT SNAPSHOT MODAL ----
+let snapshotCurrentName = '';
+async function openSnapshot(name) {
+  snapshotCurrentName = name;
+  const res = await apiGet('getStudentSnapshot', { pin: adminPin, name });
+  document.getElementById('snapshotName').textContent = res.name;
+  document.getElementById('snapshotMeta').textContent = 'Section ' + (res.section || '—') + ' · Limit: ' + res.limit + '/day · ' + res.totalPasses + ' total passes on record';
+  const outNow = monitorData.find(s => s.name === name);
+  document.getElementById('snapshotEndPassBtn').style.display = outNow ? 'block' : 'none';
+  document.getElementById('snapshotHistory').innerHTML = res.history.map(h => `
+    <div class="whoRow">
+      <div style="flex:1;">
+        <div style="font-weight:600; font-size:13px;">${h.reason} · with ${h.teacher}</div>
+        <div class="whoMeta">${new Date(h.timeOut).toLocaleString()} ${h.duration ? '· ' + h.duration : (h.timeIn ? '' : '· still out')}</div>
+      </div>
+    </div>`).join('') || '<div class="whoMeta">No history yet.</div>';
+  document.getElementById('snapshotModal').style.display = 'flex';
+}
+document.getElementById('snapshotEndPassBtn').addEventListener('click', async () => {
+  await apiPost({ action: 'adminEndPass', pin: adminPin, name: snapshotCurrentName });
+  showToast(snapshotCurrentName, 'Pass ended by admin', true);
+  document.getElementById('snapshotModal').style.display = 'none';
+  refreshMonitor();
+});
+document.getElementById('snapshotRestoreBtn').addEventListener('click', async () => {
+  await apiPost({ action: 'restoreLimit', pin: adminPin, name: snapshotCurrentName });
+  showToast(snapshotCurrentName, 'Limit restored', true);
+  openSnapshot(snapshotCurrentName);
+});
+document.getElementById('snapshotCloseBtn').addEventListener('click', () => { document.getElementById('snapshotModal').style.display = 'none'; });
+
 async function refreshAdmin() {
   if (!adminPin) return;
   const [summary, flyers, flags, notifs] = await Promise.all([
@@ -1038,9 +1216,11 @@ async function refreshAdmin() {
   ]);
   renderAdminSummary(summary);
   document.getElementById('frequentFlyersList').innerHTML = (flyers.students || []).map(s =>
-    `<div class="whoRow"><div style="flex:1;">${s.name}</div><div class="whoMeta mono">${s.passCount} passes</div></div>`).join('') || '<div class="whoMeta">No data yet.</div>';
+    `<div class="whoRow" style="cursor:pointer;" data-snapshot="${s.name}"><div style="flex:1;">${s.name}</div><div class="whoMeta mono">${s.passCount} passes</div></div>`).join('') || '<div class="whoMeta">No data yet.</div>';
   document.getElementById('coOccurrenceList').innerHTML = (flags.flags || []).map(f =>
-    `<div class="whoRow"><div style="flex:1;">${f.pair[0]} &amp; ${f.pair[1]}</div><div class="whoMeta mono">${f.count}×</div></div>`).join('') || '<div class="whoMeta">No flags.</div>';
+    `<div class="whoRow"><div style="flex:1;"><span style="cursor:pointer;" data-snapshot="${f.pair[0]}">${f.pair[0]}</span> &amp; <span style="cursor:pointer;" data-snapshot="${f.pair[1]}">${f.pair[1]}</span></div><div class="whoMeta mono">${f.count}×</div></div>`).join('') || '<div class="whoMeta">No flags.</div>';
+  document.querySelectorAll('#frequentFlyersList [data-snapshot], #coOccurrenceList [data-snapshot]').forEach(el =>
+    el.addEventListener('click', () => openSnapshot(el.dataset.snapshot)));
   document.getElementById('notificationsList').innerHTML = (notifs.notifications || []).slice(0, 20).map(n => `
     <div class="notif ${n.status === 'unread' ? 'unread' : ''}">
       <div style="font-weight:700; font-size:13px;">${n.title}</div>
