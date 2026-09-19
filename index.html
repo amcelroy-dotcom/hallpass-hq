@@ -144,6 +144,16 @@
   </div>
 </div>
 
+<div id="deviceSetupGate" style="position:fixed; inset:0; background:#0A1B33; display:none; align-items:center; justify-content:center; z-index:200; padding:20px;">
+  <div class="modalCard" style="max-width:420px;">
+    <h3>One-time device setup</h3>
+    <div style="color:#7C8AA8; font-size:13px; margin-bottom:16px;">This device hasn't been set up yet. Enter the setup key given to you by your school's admin — this only needs to happen once per device.</div>
+    <input id="deviceSetupKeyInput" placeholder="Setup key" style="width:100%; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:14px; margin-bottom:10px;">
+    <button class="primary" id="deviceSetupSubmit">Activate This Device</button>
+    <div id="deviceSetupError" style="display:none; color:#FF6B7F; font-size:13px; margin-top:10px;">That key didn't work — check with your admin.</div>
+  </div>
+</div>
+
 <main>
 
   <!-- ================= KIOSK ================= -->
@@ -441,18 +451,46 @@
 // Shared config + API helpers
 // ============================================================
 // ============================================================
-// Default connection settings — every device works out of the box with
-// these, no per-device setup required. The gear-icon settings modal still
-// exists purely as an override (testing against a different deployment,
-// temporarily pointing one device elsewhere) — it's optional, not required.
+// Default connection settings — the URL is safe to ship in the file (it
+// identifies where to send requests, but grants nothing by itself). The
+// API_KEY is deliberately NOT hardcoded here anymore — a key baked into a
+// publicly-viewable file isn't actually secret, since anyone can View
+// Source. Instead, a brand-new device shows a one-time setup gate (below)
+// where a real staff member types the key in once; it's then remembered
+// in that device's own local storage forever. Someone who just finds the
+// URL without ever being given the key by your staff gets nothing.
 // ============================================================
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwLIeUS2CvDd8ykGAzOL1iIhREZl4AbR5qiKcDg8595EJNEyrkJSU9mnNebfeWHHPvh4Q/exec';
-const DEFAULT_API_KEY = 'sany-hp-7x2m9qzb4k'; // <-- put your actual Script Properties API_KEY value here before deploying
 
 const apiUrlInput = document.getElementById('apiUrl');
 const apiKeyInput = document.getElementById('apiKey');
 apiUrlInput.value = localStorage.getItem('hallpass_api_url') || DEFAULT_API_URL;
-apiKeyInput.value = localStorage.getItem('hallpass_api_key') || DEFAULT_API_KEY;
+apiKeyInput.value = localStorage.getItem('hallpass_api_key') || '';
+
+// One-time device setup gate — if this device has never had a key entered,
+// nothing else on the page will actually work anyway (every apiGet/apiPost
+// call already refuses to run without both a URL and a key), so show a
+// clear, guided setup screen instead of a confusing "nothing happens" app.
+if (!apiKeyInput.value) {
+  document.getElementById('deviceSetupGate').style.display = 'flex';
+}
+document.getElementById('deviceSetupSubmit').addEventListener('click', activateDevice);
+document.getElementById('deviceSetupKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter') activateDevice(); });
+async function activateDevice() {
+  const candidate = document.getElementById('deviceSetupKeyInput').value.trim();
+  if (!candidate) return;
+  apiKeyInput.value = candidate; // temporarily, just to test it
+  try {
+    const res = await fetch(new URL(apiUrlInput.value.trim() + '?action=getReasons&key=' + encodeURIComponent(candidate)));
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    localStorage.setItem('hallpass_api_key', candidate);
+    document.getElementById('deviceSetupGate').style.display = 'none';
+  } catch (err) {
+    apiKeyInput.value = '';
+    document.getElementById('deviceSetupError').style.display = 'block';
+  }
+}
 
 document.getElementById('settingsBtn').addEventListener('click', () => {
   settingsGateBoxes.clear();
