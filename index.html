@@ -447,7 +447,7 @@
 // temporarily pointing one device elsewhere) — it's optional, not required.
 // ============================================================
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwLIeUS2CvDd8ykGAzOL1iIhREZl4AbR5qiKcDg8595EJNEyrkJSU9mnNebfeWHHPvh4Q/exec';
-const DEFAULT_API_KEY = 'sany-hp-7x2m9qzb4k'; // <-- put your actual Script Properties API_KEY value here before deploying
+const DEFAULT_API_KEY = 'PASTE_YOUR_REAL_API_KEY_HERE'; // <-- put your actual Script Properties API_KEY value here before deploying
 
 const apiUrlInput = document.getElementById('apiUrl');
 const apiKeyInput = document.getElementById('apiKey');
@@ -1232,7 +1232,7 @@ async function unlockAdmin(pin) {
   refreshEncounters();
   refreshOccupancy();
   setInterval(refreshMonitor, 10000);
-  setInterval(refreshOccupancy, 20000);
+  setInterval(refreshOccupancy, 45000);
 }
 const savedAdminPin = localStorage.getItem('hallpass_admin_pin');
 if (savedAdminPin) unlockAdmin(savedAdminPin);
@@ -1256,11 +1256,18 @@ function renderAdminSummary(d) {
 
 // ---- HALL MONITOR (live, clickable, searchable, exportable) ----
 let monitorData = [];
+let monitorRefreshInFlight = false;
 async function refreshMonitor() {
-  const data = await apiGet('getWhosOutNow', {});
-  monitorData = data.students || [];
-  renderMonitor();
-  apiGet('getAdminSummary', { pin: adminPin }).then(renderAdminSummary);
+  if (monitorRefreshInFlight) return;
+  monitorRefreshInFlight = true;
+  try {
+    const data = await apiGet('getWhosOutNow', {});
+    monitorData = data.students || [];
+    renderMonitor();
+    apiGet('getAdminSummary', { pin: adminPin }).then(renderAdminSummary);
+  } finally {
+    monitorRefreshInFlight = false;
+  }
 }
 function renderMonitor() {
   const q = document.getElementById('monitorSearch').value.trim().toLowerCase();
@@ -1299,16 +1306,20 @@ document.getElementById('exportCsvBtn').addEventListener('click', async () => {
 // ---- BUILDING OCCUPANCY (grade → section → student drill-down) ----
 let occupancySections = [];
 let occupancyView = { level: 'grades', grade: null };
+let occupancyRefreshInFlight = false; // prevents overlapping slow requests from stacking and fighting each other for the DOM
 
 async function refreshOccupancy() {
-  const [occ, unaccounted] = await Promise.all([
-    apiGet('getBuildingOccupancy', { pin: adminPin }),
-    apiGet('getUnaccountedFor', { pin: adminPin })
-  ]);
-  document.getElementById('occupancyDayType').textContent = occ.dayType || '—';
-  occupancySections = occ.sections || [];
-  renderOccupancyLevel();
-  renderUnaccounted(unaccounted);
+  if (occupancyRefreshInFlight) return; // a previous refresh is still running — skip this tick rather than pile on
+  occupancyRefreshInFlight = true;
+  try {
+    const combined = await apiGet('getOccupancyAndUnaccounted', { pin: adminPin });
+    document.getElementById('occupancyDayType').textContent = combined.dayType || '—';
+    occupancySections = combined.sections || [];
+    renderOccupancyLevel();
+    renderUnaccounted(combined.unaccounted || { students: [] });
+  } finally {
+    occupancyRefreshInFlight = false;
+  }
 }
 
 function renderUnaccounted(unaccounted) {
