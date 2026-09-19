@@ -114,6 +114,7 @@
   <div class="brand"><div class="dot mono">SH</div><div class="name">SANY Hall Pass</div></div>
   <nav>
     <button data-view="kiosk" class="active">Kiosk</button>
+    <button data-view="hallmonitor">Hall Monitor</button>
     <button data-view="attendance">Attendance</button>
     <button data-view="admin">Admin</button>
   </nav>
@@ -177,9 +178,9 @@
       <!-- Right column: Who's Out by default, swapped for the confirm card once a student is identified — never sits empty. -->
       <div id="kioskRightColumn">
         <div class="card" id="kioskWhoCard">
-          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-            <div class="sectionLabel" style="margin:0;">WHO'S OUT RIGHT NOW</div>
-            <input id="kioskTeacherFilter" placeholder="Filter to one teacher…" style="flex:1; min-width:140px; max-width:200px; padding:7px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:12px;">
+          <div style="margin-bottom:14px;">
+            <div class="sectionLabel" style="margin:0;">WHO'S OUT OF THIS CLASSROOM</div>
+            <div style="color:#5B6A87; font-size:11px; margin-top:2px;">Scoped to this device's assigned teacher only — see Attendance to change it.</div>
           </div>
           <div id="kioskWhoRows"></div>
           <div id="kioskWhoEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">Nobody's out right now.</div>
@@ -200,12 +201,35 @@
           <div id="manualPicker">
             <input id="teacherSearch" placeholder="Type a name or room #…">
             <div id="teacherList"></div>
+            <button id="showAllTeachersLink" class="ghostBtn" style="display:none; text-align:left; padding:8px 0;">Not seeing them? Show all teachers instead →</button>
           </div>
           <div class="sectionLabel">Reason</div>
           <div id="reasonGrid"></div>
           <button class="primaryBtn" id="confirmBtn" disabled>Sign Out</button>
           <button class="ghostBtn" id="cancelBtn">Cancel</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= HALL MONITOR ================= -->
+  <div class="view" id="view-hallmonitor">
+    <div id="hallMonitorGate" class="pinGate">
+      <div style="font-size:18px;font-weight:700;">Hall Monitor PIN required</div>
+      <div class="pinBoxes" id="pinBoxesHallMonitorGate" style="max-width:220px; margin:16px auto;">
+        <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+        <input class="pinRealInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+      </div>
+      <div id="hallMonitorPinError" style="display:none;color:#FF6B7F;font-size:13px;margin-top:8px;">Incorrect PIN.</div>
+    </div>
+    <div id="hallMonitorApp" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+        <div class="sectionLabel" style="margin:0;">EVERYONE OUT RIGHT NOW, SCHOOL-WIDE</div>
+        <input id="hallMonitorFilter" placeholder="Filter to one teacher…" style="flex:1; min-width:160px; max-width:220px; padding:7px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; font-size:12px;">
+      </div>
+      <div class="card">
+        <div id="hallMonitorRows"></div>
+        <div id="hallMonitorEmpty" style="display:none; text-align:center; color:#5B6A87; padding:20px; font-size:13px;">Nobody's out right now.</div>
       </div>
     </div>
   </div>
@@ -486,6 +510,7 @@ async function activateDevice() {
     if (data.error) throw new Error(data.error);
     localStorage.setItem('hallpass_api_key', candidate);
     document.getElementById('deviceSetupGate').style.display = 'none';
+    startKioskCamera();
   } catch (err) {
     apiKeyInput.value = '';
     document.getElementById('deviceSetupError').style.display = 'block';
@@ -660,6 +685,54 @@ async function scanVideoFrame(video, canvas, ctx) {
   const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
   return code ? code.data : null;
 }
+// ============================================================
+// HALL MONITOR (school-wide, separately PIN-gated — the one place that
+// intentionally shows everyone, not scoped to a single teacher)
+// ============================================================
+let hallMonitorPin = '';
+const hallMonitorGateBoxes = wirePinBoxes('pinBoxesHallMonitorGate', unlockHallMonitor);
+async function unlockHallMonitor(pin) {
+  if (!pin) return;
+  const res = await apiGet('checkHallMonitorPin', { pin });
+  if (!res.valid) {
+    document.getElementById('hallMonitorPinError').style.display = 'block';
+    hallMonitorGateBoxes.clear();
+    return;
+  }
+  hallMonitorPin = pin;
+  localStorage.setItem('hallpass_hallmonitor_pin', pin);
+  document.getElementById('hallMonitorGate').style.display = 'none';
+  document.getElementById('hallMonitorApp').style.display = 'block';
+  refreshHallMonitor();
+  setInterval(refreshHallMonitor, 15000);
+}
+const savedHallMonitorPin = localStorage.getItem('hallpass_hallmonitor_pin');
+if (savedHallMonitorPin) unlockHallMonitor(savedHallMonitorPin);
+
+document.getElementById('hallMonitorFilter').addEventListener('input', refreshHallMonitor);
+let hallMonitorRefreshInFlight = false;
+async function refreshHallMonitor() {
+  if (hallMonitorRefreshInFlight || !hallMonitorPin) return;
+  hallMonitorRefreshInFlight = true;
+  try {
+    const t = document.getElementById('hallMonitorFilter').value.trim();
+    const data = await apiGet('getWhosOutNow', t ? { teacher: t } : {});
+    const rowsEl = document.getElementById('hallMonitorRows'), emptyEl = document.getElementById('hallMonitorEmpty');
+    if (!data.students || data.students.length === 0) { rowsEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+    rowsEl.innerHTML = data.students.map(s => {
+      const atLimit = s.usedToday >= s.limit;
+      return `<div class="whoRow ${atLimit ? 'limitHit' : ''}">
+        <div class="avatar mono">${initials(s.name)}</div>
+        <div><div style="font-weight:700;">${s.name}</div><div class="whoMeta">Rm ${s.room || '—'} · ${s.teacher} · ${s.reason}</div></div>
+        <div class="timer mono" data-start="${s.timeOutIso}">${elapsed(s.timeOutIso)}</div>
+      </div>`;
+    }).join('');
+  } finally {
+    hallMonitorRefreshInFlight = false;
+  }
+}
+
 document.querySelectorAll('nav button').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -672,6 +745,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     setTimeout(() => {
       if (btn.dataset.view === 'attendance' && !staffPin) attGateBoxes.focus();
       if (btn.dataset.view === 'admin' && !adminPin) adminGateBoxes.focus();
+      if (btn.dataset.view === 'hallmonitor' && !hallMonitorPin) hallMonitorGateBoxes.focus();
     }, 50);
     manageCameraLifecycle(btn.dataset.view);
   });
@@ -725,7 +799,12 @@ function startKioskCamera() {
     })
     .catch(err => { camStatus.textContent = 'Camera failed: ' + err.name; camStatus.className = 'statusPill err'; });
 }
-startKioskCamera();
+// Only auto-start if this device is already set up — starting the camera
+// (and its continuous per-frame scan loop) underneath the device-setup
+// gate was competing for the main thread with every keystroke typed into
+// that screen, which is what caused the severe input lag there. It starts
+// for real the moment setup actually completes (see activateDevice below).
+if (apiKeyInput.value) startKioskCamera();
 
 // Called from the top-nav click handler — stops each camera's actual
 // hardware stream (not just its scan loop) the moment its tab isn't
@@ -812,6 +891,8 @@ function flashCamStatus(msg) {
 }
 function cooldown() { cooldownUntil = Date.now() + 2000; }
 
+let activePickerList = [], fullTeacherList = [];
+
 async function openConfirmScreen(status) {
   document.getElementById('kioskScanCard').style.display = 'none';
   document.getElementById('kioskWhoCard').style.display = 'none';
@@ -823,17 +904,24 @@ async function openConfirmScreen(status) {
   document.getElementById('teacherSearch').value = '';
   document.getElementById('suggestedTeacher').style.display = 'none';
   document.getElementById('manualPicker').style.display = 'block';
+  document.getElementById('showAllTeachersLink').style.display = 'none';
   renderReasons();
 
-  // Teacher list and schedule suggestion don't depend on each other — run
-  // them concurrently instead of one-after-another to cut this screen's
-  // load time roughly in half.
-  const [teachersResult, suggestion] = await Promise.all([
-    teachers.length === 0 ? apiGet('getTeachers', {}) : Promise.resolve({ teachers }),
+  // Three independent lookups, run concurrently rather than one after
+  // another: the full staff directory (cached after the first call), the
+  // narrowed "teachers this student could plausibly have" list based on
+  // their actual section, and the schedule-based suggestion.
+  const [fullResult, narrowedResult, suggestion] = await Promise.all([
+    fullTeacherList.length === 0 ? apiGet('getTeachers', {}) : Promise.resolve({ teachers: fullTeacherList }),
+    apiGet('getTeachersForStudent', { name: currentStudent.name }).catch(() => ({ narrowed: false, teachers: [] })),
     apiGet('getSuggestedTeacher', { name: currentStudent.name }).catch(() => ({ confident: false }))
   ]);
-  teachers = teachersResult.teachers || teachers;
-  renderTeacherList(teachers);
+  fullTeacherList = fullResult.teachers || fullTeacherList;
+  teachers = fullTeacherList; // kept for other code that still reads the shared `teachers` var (e.g. suggestion/home-teacher matching below)
+
+  activePickerList = (narrowedResult.narrowed && narrowedResult.teachers.length > 0) ? narrowedResult.teachers : fullTeacherList;
+  document.getElementById('showAllTeachersLink').style.display = narrowedResult.narrowed ? 'block' : 'none';
+  renderTeacherList(activePickerList);
 
   if (suggestion.confident) {
     const match = teachers.find(t => t.displayName.toLowerCase().includes(suggestion.teacher.toLowerCase()));
@@ -881,7 +969,7 @@ async function openConfirmScreen(status) {
 function renderTeacherList(list) {
   const el = document.getElementById('teacherList');
   el.innerHTML = '';
-  list.slice(0, 30).forEach(t => {
+  list.forEach(t => {
     const div = document.createElement('div');
     div.className = 'opt';
     div.textContent = t.displayName + (t.room ? ' — Rm ' + t.room : '');
@@ -896,7 +984,13 @@ function renderTeacherList(list) {
 }
 document.getElementById('teacherSearch').addEventListener('input', e => {
   const q = e.target.value.trim().toLowerCase();
-  renderTeacherList(q ? teachers.filter(t => t.displayName.toLowerCase().includes(q) || String(t.room).toLowerCase().includes(q)) : teachers);
+  renderTeacherList(q ? activePickerList.filter(t => t.displayName.toLowerCase().includes(q) || String(t.room).toLowerCase().includes(q)) : activePickerList);
+});
+document.getElementById('showAllTeachersLink').addEventListener('click', () => {
+  activePickerList = fullTeacherList;
+  document.getElementById('showAllTeachersLink').style.display = 'none';
+  document.getElementById('teacherSearch').value = '';
+  renderTeacherList(activePickerList);
 });
 document.getElementById('cancelBtn').addEventListener('click', () => {
   currentStudent = null;
@@ -925,23 +1019,24 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
 // whole school. A saved explicit filter override (if someone typed one
 // in) takes priority over the device assignment; clearing the box falls
 // back to the device assignment rather than to school-wide.
-const kioskFilter = document.getElementById('kioskTeacherFilter');
-const deviceHomeTeacher = localStorage.getItem('hallpass_class_teacher') || '';
-kioskFilter.value = localStorage.getItem('hallpass_kiosk_whoout_filter') || deviceHomeTeacher;
-kioskFilter.placeholder = deviceHomeTeacher ? 'Showing: ' + deviceHomeTeacher + ' (clear to search)' : 'Filter to one teacher…';
-kioskFilter.addEventListener('change', () => {
-  const v = kioskFilter.value.trim();
-  if (v) localStorage.setItem('hallpass_kiosk_whoout_filter', v);
-  else { localStorage.removeItem('hallpass_kiosk_whoout_filter'); kioskFilter.value = deviceHomeTeacher; }
-  refreshWhosOut();
-});
+// Strictly scoped to this device's assigned teacher — no filter box, no
+// way to broaden to other teachers or the whole school from the Kiosk
+// screen. Seeing everyone is now Hall Monitor's job (its own PIN-gated
+// tab), not something a student-facing kiosk should ever offer.
+function getDeviceHomeTeacher() { return localStorage.getItem('hallpass_class_teacher') || ''; }
 
 async function refreshWhosOut() {
   if (!api() || !apiKey()) return;
-  const params = {}; const t = kioskFilter.value.trim(); if (t) params.teacher = t;
-  const data = await apiGet('getWhosOutNow', params);
+  const teacher = getDeviceHomeTeacher();
   const rowsEl = document.getElementById('kioskWhoRows'), emptyEl = document.getElementById('kioskWhoEmpty');
-  if (!data.students || data.students.length === 0) { rowsEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+  if (!teacher) {
+    rowsEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = 'This device has no assigned teacher yet — set one in Attendance.';
+    return;
+  }
+  const data = await apiGet('getWhosOutNow', { teacher });
+  if (!data.students || data.students.length === 0) { rowsEl.innerHTML = ''; emptyEl.style.display = 'block'; emptyEl.textContent = "Nobody's out right now."; return; }
   emptyEl.style.display = 'none';
   rowsEl.innerHTML = data.students.map(s => {
     const atLimit = s.usedToday >= s.limit;
@@ -1020,7 +1115,7 @@ document.getElementById('changeClassTeacherBtn').addEventListener('click', () =>
   if (show) renderClassTeacherList(classTeachers);
 });
 function renderClassTeacherList(list) {
-  document.getElementById('classTeacherList').innerHTML = list.slice(0, 30).map(t =>
+  document.getElementById('classTeacherList').innerHTML = list.map(t =>
     `<div class="opt" data-name="${t.displayName}">${t.displayName}${t.room ? ' — Rm ' + t.room : ''}</div>`).join('');
   document.querySelectorAll('#classTeacherList .opt').forEach(el => el.addEventListener('click', () => {
     currentClassTeacher = el.dataset.name;
@@ -1028,13 +1123,7 @@ function renderClassTeacherList(list) {
     document.getElementById('classTeacherName').textContent = currentClassTeacher;
     document.getElementById('classTeacherPicker').style.display = 'none';
     refreshClassAttendance();
-    // Keep the kiosk's Who's Out default in sync — only if the person
-    // hasn't already typed their own explicit filter override there.
-    if (!localStorage.getItem('hallpass_kiosk_whoout_filter')) {
-      kioskFilter.value = currentClassTeacher;
-      kioskFilter.placeholder = 'Showing: ' + currentClassTeacher + ' (clear to search)';
-      refreshWhosOut();
-    }
+    refreshWhosOut(); // kiosk reads the assignment straight from localStorage — just re-fetch
   }));
 }
 document.getElementById('classTeacherSearch').addEventListener('input', e => {
