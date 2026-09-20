@@ -231,6 +231,7 @@
         </div>
         <div style="text-align:center; color:#5B6A87; font-size:11px; margin-bottom:10px;">Hold the badge close — fill the frame</div>
         <span class="statusPill" id="camStatus">Requesting camera…</span>
+        <button id="torchBtnKiosk" class="reasonBtn" style="display:none; padding:7px 12px; font-size:12px; margin-left:8px;">🔦 Light</button>
         <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
         <div class="pinBoxes" id="pinBoxes">
           <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
@@ -363,7 +364,10 @@
               <video id="videoAtt" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
               <canvas id="canvasAtt" style="display:none;"></canvas>
             </div>
-            <div style="text-align:center;"><span class="statusPill" id="camStatusAtt">Requesting camera…</span></div>
+            <div style="text-align:center;">
+              <span class="statusPill" id="camStatusAtt">Requesting camera…</span>
+              <button id="torchBtnAtt" class="reasonBtn" style="display:none; padding:7px 12px; font-size:12px; margin-left:8px;">🔦 Light</button>
+            </div>
             <div style="margin:12px 0 6px; color:#7C8AA8; font-size:var(--text-xs); text-align:center;">— or type the 5-digit lunch PIN —</div>
             <div class="pinBoxes" id="pinBoxesAtt">
               <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
@@ -882,25 +886,72 @@ if ('BarcodeDetector' in window) {
   catch (e) { nativeDetector = null; }
 }
 
-async function scanVideoFrame(video, canvas, ctx) {
-  if (nativeDetector) {
-    try {
-      const codes = await nativeDetector.detect(video);
-      if (codes.length > 0) return codes[0].rawValue;
-      return null;
-    } catch (e) {
-      // fall through to jsQR if native detection errors on this frame
-    }
+// The "flashes green 5 seconds after pulling the card away" symptom is a
+// classic sign of stale results: BarcodeDetector.detect() was being fed
+// the raw live <video> element directly, which some browsers/hardware
+// queue or buffer internally rather than processing immediately — so a
+// detect() call started while the code was in frame can resolve long
+// after it's gone, and the code above had no way to know the result was
+// stale. Two real fixes: (1) always detect against a still canvas
+// snapshot, never the live stream directly, and (2) explicitly time-stamp
+// every detection attempt and discard the result if it took too long to
+// come back, rather than trusting it just because it eventually resolved.
+// Samples a handful of pixels across the frame to estimate how dark it
+// actually is, so the brightness boost below can scale itself — mild in a
+// normally-lit room (over-brightening a fine image can wash out the
+// contrast a QR code actually needs), aggressive in a dim one. This works
+// on any camera at all, phone or stationary webcam, with no hardware
+// dependency the way the torch button has.
+function estimateBrightness(ctx, width, height) {
+  const sample = ctx.getImageData(0, 0, width, height).data;
+  let total = 0, count = 0;
+  for (let i = 0; i < sample.length; i += 4 * 37) { // sparse sample — plenty accurate, far cheaper than reading every pixel
+    total += (sample[i] + sample[i + 1] + sample[i + 2]) / 3;
+    count++;
   }
-  // jsQR fallback: disable smoothing so downscaling doesn't blur the sharp
-  // module edges a QR code needs to decode reliably — smoothing (the
-  // default) was the real cause of the accuracy drop, more than the
-  // resolution reduction itself.
-  const maxDim = 640;
+  return count ? total / count : 128; // 0 (black) to 255 (white)
+}
+
+async function scanVideoFrame(video, canvas, ctx) {
+  const maxDim = 480; // smaller snapshot = faster detection, both engines
   const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
   canvas.width = video.videoWidth * scale; canvas.height = video.videoHeight * scale;
   ctx.imageSmoothingEnabled = false;
+  ctx.filter = 'none';
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const brightness = estimateBrightness(ctx, canvas.width, canvas.height);
+  if (brightness < 90) {
+    // Scale the correction to how dark it actually is, rather than one
+    // fixed amount — redraw the same frame through a brightness/contrast
+    // filter before either detector ever sees it. This affects both
+    // engines equally, since they're both reading these same canvas
+    // pixels afterward, not the raw camera feed.
+    const deficit = 90 - brightness; // 0–90
+    const brightnessBoost = 1 + Math.min(deficit / 60, 1.1);   // up to ~2.1x in near-darkness
+    const contrastBoost = 1 + Math.min(deficit / 120, 0.5);     // up to ~1.5x
+    ctx.filter = `brightness(${brightnessBoost.toFixed(2)}) contrast(${contrastBoost.toFixed(2)})`;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
+  }
+
+  const startedAt = performance.now();
+  const isStale = () => performance.now() - startedAt > 600; // discard anything that took longer than this — the code is almost certainly gone by then
+
+  if (nativeDetector) {
+    try {
+      const codes = await Promise.race([
+        nativeDetector.detect(canvas),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('detect_timeout')), 600))
+      ]);
+      if (isStale()) return null; // arrived, but too late to trust
+      if (codes.length > 0) return codes[0].rawValue;
+      return null;
+    } catch (e) {
+      // timed out or errored — fall through to jsQR on this same snapshot
+    }
+  }
+  if (isStale()) return null;
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
   return code ? code.data : null;
@@ -1016,17 +1067,36 @@ let lastDecoded = '', lastDecodedAt = 0;
 
 let kioskStream = null, attStream = null, tripStream = null;
 
+// Real low-light help: turns on the camera's actual flashlight where the
+// hardware supports it (most phone back cameras do; laptop webcams and
+// front cameras generally don't — the button only appears when the
+// capability check actually confirms support, rather than showing a
+// control that would silently do nothing).
+function setupTorchButton(stream, buttonEl) {
+  const track = stream && stream.getVideoTracks()[0];
+  const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+  if (!caps.torch) { buttonEl.style.display = 'none'; return; }
+  buttonEl.style.display = 'inline-flex';
+  let torchOn = false;
+  buttonEl.onclick = () => {
+    torchOn = !torchOn;
+    track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {});
+    buttonEl.classList.toggle('selected', torchOn);
+  };
+}
+
 function stopStream(stream, videoEl) {
   if (stream) stream.getTracks().forEach(t => t.stop());
   if (videoEl) videoEl.srcObject = null;
 }
 
 function startKioskCamera() {
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', frameRate: { ideal: 15, max: 24 } } })
     .then(stream => {
       kioskStream = stream;
       video.srcObject = stream;
       video.addEventListener('loadedmetadata', () => matchAspectRatio(video, 'videoWrap'), { once: true });
+      setupTorchButton(stream, document.getElementById('torchBtnKiosk'));
       camStatus.textContent = 'Camera ready — scanning'; camStatus.className = 'statusPill ok'; requestAnimationFrame(tick);
     })
     .catch(err => { camStatus.textContent = 'Camera failed: ' + err.name; camStatus.className = 'statusPill err'; });
@@ -1491,11 +1561,12 @@ const videoAtt = document.getElementById('videoAtt'), canvasAtt = document.getEl
 const ctxAtt = canvasAtt.getContext('2d', { willReadFrequently: true });
 let lastDecodedAtt = '', lastDecodedAttAt = 0;
 function startAttCamera() {
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', frameRate: { ideal: 15, max: 24 } } })
     .then(stream => {
       attStream = stream;
       videoAtt.srcObject = stream;
       videoAtt.addEventListener('loadedmetadata', () => matchAspectRatio(videoAtt, 'videoWrapAttInner'), { once: true });
+      setupTorchButton(stream, document.getElementById('torchBtnAtt'));
       document.getElementById('camStatusAtt').textContent = 'Camera ready'; document.getElementById('camStatusAtt').className = 'statusPill ok'; requestAnimationFrame(tickAtt);
     })
     .catch(err => { document.getElementById('camStatusAtt').textContent = 'Camera failed: ' + err.name; document.getElementById('camStatusAtt').className = 'statusPill err'; });
@@ -1604,7 +1675,7 @@ const ctxTrip = canvasTrip.getContext('2d', { willReadFrequently: true });
 let lastDecodedTrip = '', lastDecodedTripAt = 0;
 function startTripCamera() {
   tripCameraStarted = true;
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', frameRate: { ideal: 15, max: 24 } } })
     .then(stream => {
       tripStream = stream;
       videoTrip.srcObject = stream;
