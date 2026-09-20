@@ -570,8 +570,12 @@
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="sectionLabel">ROSTER &amp; LUNCH PIN IMPORT</div>
-          <div style="color:#7C8AA8; font-size:var(--text-sm); margin-bottom:12px;">Paste CSV data below, or start from the template. Nothing is written until you review and click Apply.</div>
-          <button id="downloadRosterTemplateBtn" style="padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:12px; font-weight:700; cursor:pointer; margin-bottom:10px;">Download Template CSV</button>
+          <div style="color:#7C8AA8; font-size:var(--text-sm); margin-bottom:12px;">Upload a CSV file, or paste the data directly. Nothing is written until you review and click Apply.</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+            <button id="downloadRosterTemplateBtn" style="padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:12px; font-weight:700; cursor:pointer;">Download Template CSV</button>
+            <label for="rosterCsvFileInput" style="padding:8px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.06); color:#fff; font-size:12px; font-weight:700; cursor:pointer;">📁 Upload CSV File</label>
+            <input type="file" id="rosterCsvFileInput" accept=".csv,text/csv" style="display:none;">
+          </div>
           <textarea id="rosterImportCsv" placeholder="LastName,FirstName,Grade,Section,LunchPIN,StudentID" rows="6" style="width:100%; padding:11px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; margin-bottom:8px; font-family:monospace; font-size:12px;"></textarea>
           <button class="primaryBtn" id="previewRosterBtn">Preview Import</button>
           <div id="rosterPreviewResult" style="margin-top:16px; display:none;">
@@ -1802,6 +1806,7 @@ let badgePrintStudents = [];
 document.getElementById('loadBadgePrintBtn').addEventListener('click', async () => {
   const section = document.getElementById('badgePrintSection').value.trim();
   const res = await apiGet('getBadgePrintData', section ? { pin: adminPin, section } : { pin: adminPin });
+  if (res.error) { showToast('Could not load roster', res.error, false); return; } // previously failed silently as "0 cards ready" with no explanation
   badgePrintStudents = res.students || [];
   document.getElementById('badgePrintMeta').style.display = 'block';
   document.getElementById('badgePrintMeta').textContent = badgePrintStudents.length + ' student card(s) ready' + (section ? ' for section ' + section : '') + '.';
@@ -2237,6 +2242,18 @@ document.getElementById('downloadRosterTemplateBtn').addEventListener('click', a
 });
 
 let rosterPreviewReady = [];
+document.getElementById('rosterCsvFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('rosterImportCsv').value = ev.target.result;
+    showToast('File loaded', file.name, true);
+  };
+  reader.onerror = () => showToast('Could not read file', file.name, false);
+  reader.readAsText(file);
+});
+
 document.getElementById('previewRosterBtn').addEventListener('click', async () => {
   const csv = document.getElementById('rosterImportCsv').value.trim();
   if (!csv) { showToast('Nothing to preview', 'Paste CSV data first.', false); return; }
