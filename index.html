@@ -1117,6 +1117,53 @@ function flashCamStatus(msg) {
 function cooldown() { cooldownUntil = Date.now() + 2000; }
 
 let activePickerList = [], fullTeacherList = [];
+let kioskStaticData = null, kioskStaticDataLoading = null;
+
+// Loaded once (not per scan) — the whole point is that a student's
+// section and the Schedule tab barely change all day, so there's no
+// reason to ask the server for them fresh on every single scan. Only
+// "what time is it right now" needs to be live, and the browser already
+// knows that without asking anyone.
+async function loadKioskStaticData() {
+  if (kioskStaticData) return kioskStaticData;
+  if (kioskStaticDataLoading) return kioskStaticDataLoading; // avoid firing this twice if two scans race during initial load
+  kioskStaticDataLoading = apiGet('getKioskStaticData', {}).then(data => {
+    kioskStaticData = data;
+    fullTeacherList = data.teachers || [];
+    teachers = fullTeacherList;
+    return data;
+  }).catch(() => null);
+  return kioskStaticDataLoading;
+}
+loadKioskStaticData(); // kick off immediately on page load, so it's usually already cached by the time the first real scan happens
+
+/** Pure client-side equivalent of the old getSuggestedTeacher call — same
+ *  rules, computed instantly from the preloaded schedule instead of a
+ *  network round trip. */
+function computeSuggestion(studentName, staticData) {
+  const section = staticData.studentSections[studentName];
+  if (!section) return { confident: false };
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const dayType = staticData.dayType;
+  const rows = staticData.schedule.filter(r => r.section === section && (r.day === 'Both' || r.day === dayType));
+  const hit = rows.find(r => r.startMin !== null && r.endMin !== null && nowMin >= r.startMin && nowMin < r.endMin);
+  if (hit) return { confident: true, section, dayType, class: hit.class, teacher: hit.teacher };
+  if (nowMin >= 14 * 60 + 30 && rows.length > 0) { // same after-2:30 testing fallback as before
+    const latest = rows.reduce((a, b) => (b.startMin > a.startMin ? b : a));
+    return { confident: true, section, dayType, class: latest.class, teacher: latest.teacher, testingOverride: true };
+  }
+  return { confident: false, section, dayType };
+}
+
+/** Pure client-side equivalent of getTeachersForStudent's narrowing. */
+function computeNarrowedTeachers(studentName, staticData) {
+  const section = staticData.studentSections[studentName];
+  if (!section) return { narrowed: false, teachers: fullTeacherList };
+  const names = new Set(staticData.schedule.filter(r => r.section === section).map(r => r.teacher).filter(Boolean));
+  if (names.size === 0) return { narrowed: false, teachers: fullTeacherList };
+  const matched = fullTeacherList.filter(t => Array.from(names).some(n => t.displayName.toLowerCase().includes(n.toLowerCase())));
+  return matched.length > 0 ? { narrowed: true, teachers: matched } : { narrowed: false, teachers: fullTeacherList };
+}
 
 async function openConfirmScreen(status) {
   document.getElementById('kioskScanCard').style.display = 'none';
@@ -1132,28 +1179,51 @@ async function openConfirmScreen(status) {
   document.getElementById('showAllTeachersLink').style.display = 'none';
   renderReasons();
 
-  // Three independent lookups, run concurrently rather than one after
-  // another: the full staff directory (cached after the first call), the
-  // narrowed "teachers this student could plausibly have" list based on
-  // their actual section, and the schedule-based suggestion.
-  const [fullResult, narrowedResult, suggestion] = await Promise.all([
-    fullTeacherList.length === 0 ? apiGet('getTeachers', {}) : Promise.resolve({ teachers: fullTeacherList }),
-    apiGet('getTeachersForStudent', { name: currentStudent.name }).catch(() => ({ narrowed: false, teachers: [] })),
-    apiGet('getSuggestedTeacher', { name: currentStudent.name }).catch(() => ({ confident: false }))
-  ]);
-  fullTeacherList = fullResult.teachers || fullTeacherList;
-  teachers = fullTeacherList; // kept for other code that still reads the shared `teachers` var (e.g. suggestion/home-teacher matching below)
+  // Zero network calls here now — everything's computed instantly from
+  // data preloaded once at startup (see loadKioskStaticData). Falls back
+  // to a real fetch only in the unlikely case the preload hasn't finished
+  // yet (e.g. this is the very first scan before it landed).
+  const staticData = await loadKioskStaticData();
+  const narrowedResult = staticData ? computeNarrowedTeachers(currentStudent.name, staticData) : { narrowed: false, teachers: fullTeacherList };
+  const suggestion = staticData ? computeSuggestion(currentStudent.name, staticData) : { confident: false };
 
   activePickerList = (narrowedResult.narrowed && narrowedResult.teachers.length > 0) ? narrowedResult.teachers : fullTeacherList;
   document.getElementById('showAllTeachersLink').style.display = narrowedResult.narrowed ? 'block' : 'none';
   renderTeacherList(activePickerList);
 
-  if (suggestion.confident) {
-    const match = teachers.find(t => t.displayName.toLowerCase().includes(suggestion.teacher.toLowerCase()));
-    selectedTeacher = match || { displayName: suggestion.teacher, room: '' }; // assumed correct — no tap needed
+  // Resolve both candidates before deciding what to show: the schedule's
+  // idea of where this student should be right now, and this device's own
+  // assigned room. If both are known and their rooms genuinely differ,
+  // the device wins outright — a room mismatch is exactly the signal that
+  // the student isn't in their regular scheduled class right now (they're
+  // physically at whatever this kiosk actually is: the nurse, the main
+  // office, wherever). No manual "this is a special location" setup
+  // needed — it falls out of comparing room numbers we already have.
+  const scheduleMatch = suggestion.confident
+    ? teachers.find(t => t.displayName.toLowerCase().includes(suggestion.teacher.toLowerCase()))
+    : null;
+  const homeTeacherName = localStorage.getItem('hallpass_class_teacher');
+  const deviceMatch = homeTeacherName ? teachers.find(t => t.displayName === homeTeacherName) : null;
+
+  const roomsKnownAndDiffer = scheduleMatch && deviceMatch && scheduleMatch.room && deviceMatch.room && String(scheduleMatch.room).trim() !== String(deviceMatch.room).trim();
+
+  let shown = null, meta = '';
+  if (roomsKnownAndDiffer) {
+    shown = deviceMatch;
+    meta = "This device's location — different from " + currentStudent.name.split(',')[0] + "'s scheduled class right now";
+  } else if (suggestion.confident) {
+    shown = scheduleMatch || { displayName: suggestion.teacher, room: '' };
+    meta = suggestion.class + ' · Day ' + suggestion.dayType;
+  } else if (deviceMatch) {
+    shown = deviceMatch;
+    meta = "This device's assigned room (or their sub)";
+  }
+
+  if (shown) {
+    selectedTeacher = shown; // assumed correct — no tap needed
     updateConfirmEnabled();
-    document.getElementById('suggestedName').textContent = selectedTeacher.displayName;
-    document.getElementById('suggestedMeta').textContent = suggestion.class + ' · Day ' + suggestion.dayType;
+    document.getElementById('suggestedName').textContent = shown.displayName;
+    document.getElementById('suggestedMeta').textContent = meta;
     document.getElementById('suggestedTeacher').style.display = 'block';
     document.getElementById('manualPicker').style.display = 'none';
     document.getElementById('changeLocationBtn').onclick = () => {
@@ -1162,32 +1232,6 @@ async function openConfirmScreen(status) {
       document.getElementById('suggestedTeacher').style.display = 'none';
       document.getElementById('manualPicker').style.display = 'block';
     };
-  } else {
-    // No confident per-student schedule match (11th/12th, no class right
-    // now, etc.) — fall back to this device's assigned room/teacher, if
-    // one's been set (same assignment used in Attendance > Class). This is
-    // a lower-confidence guess than a real schedule match, so it's still
-    // presented as something to confirm, not silently auto-selected quite
-    // as strongly — but it saves a manual search on the common case where
-    // this Chromebook genuinely lives in one room all day.
-    const homeTeacherName = localStorage.getItem('hallpass_class_teacher');
-    if (homeTeacherName) {
-      const match = teachers.find(t => t.displayName === homeTeacherName);
-      if (match) {
-        selectedTeacher = match;
-        updateConfirmEnabled();
-        document.getElementById('suggestedName').textContent = match.displayName;
-        document.getElementById('suggestedMeta').textContent = "This device's assigned room (or their sub)";
-        document.getElementById('suggestedTeacher').style.display = 'block';
-        document.getElementById('manualPicker').style.display = 'none';
-        document.getElementById('changeLocationBtn').onclick = () => {
-          selectedTeacher = null;
-          updateConfirmEnabled();
-          document.getElementById('suggestedTeacher').style.display = 'none';
-          document.getElementById('manualPicker').style.display = 'block';
-        };
-      }
-    }
   }
 }
 
