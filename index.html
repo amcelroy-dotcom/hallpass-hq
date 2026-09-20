@@ -101,6 +101,8 @@
   .statusPill.captured { background: rgba(74,222,128,0.28); color: #4ADE80; animation: capturedPulse 0.5s ease; }
   @keyframes capturedPulse { 0% { transform: scale(1); } 30% { transform: scale(1.08); } 100% { transform: scale(1); } }
   .flash::after { content: ''; position: absolute; inset: 0; background: rgba(74,222,128,0.35); animation: flashFade 0.4s ease forwards; pointer-events: none; }
+  #fullScreenFlash.flash { animation: fullScreenFlashAnim 0.35s ease; }
+  @keyframes fullScreenFlashAnim { 0% { opacity: 0; } 12% { opacity: 0.4; } 100% { opacity: 0; } }
   @keyframes flashFade { from { opacity: 1; } to { opacity: 0; } }
 
   .pinBoxes { position: relative; display: flex; gap: 8px; margin-top: 10px; }
@@ -630,6 +632,8 @@
   </div>
 
 </main>
+
+<div id="fullScreenFlash" style="position:fixed; inset:0; z-index:300; pointer-events:none; opacity:0; background:#4ADE80;"></div>
 
 <div id="toast">
   <div id="toastIcon" style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"></div>
@@ -1163,6 +1167,7 @@ function createScannerLoop({ video, canvas, ctx, flashTargetId, debounceMs, onDe
         if (data !== lastDecoded || now - lastDecodedAt > debounceMs) {
           lastDecoded = data; lastDecodedAt = now;
           if (flashTargetId) flashElement(flashTargetId);
+          flashFullScreen();
           if (onFlash) onFlash();
           onDetect(data);
         }
@@ -1194,6 +1199,18 @@ function flashElement(elementId) {
   if (!el) return;
   el.classList.add('flash');
   setTimeout(() => el.classList.remove('flash'), 400);
+}
+
+// The small preview-window flash is often physically covered by the
+// student's own card and hand at the exact moment it fires — the whole
+// point of scanning is holding the card up close, right where that
+// overlay lives. A full-screen flash is visible in peripheral vision
+// regardless of exactly where their hand is, which the small one never
+// reliably was.
+function flashFullScreen() {
+  const el = document.getElementById('fullScreenFlash');
+  el.classList.remove('flash'); void el.offsetWidth; // restart the animation if it's still finishing from a rapid prior scan
+  el.classList.add('flash');
 }
 
 const kioskPinBoxes = wirePinBoxes('pinBoxes', pin => { identifyByPin(pin); kioskPinBoxes.clear(); });
