@@ -100,7 +100,7 @@
   .statusPill.err { background: rgba(239,68,68,0.18); color: #FF6B7F; }
   .statusPill.captured { background: rgba(74,222,128,0.28); color: #4ADE80; animation: capturedPulse 0.5s ease; }
   @keyframes capturedPulse { 0% { transform: scale(1); } 30% { transform: scale(1.08); } 100% { transform: scale(1); } }
-  #videoWrap.flash::after { content: ''; position: absolute; inset: 0; background: rgba(74,222,128,0.35); animation: flashFade 0.4s ease forwards; pointer-events: none; }
+  .flash::after { content: ''; position: absolute; inset: 0; background: rgba(74,222,128,0.35); animation: flashFade 0.4s ease forwards; pointer-events: none; }
   @keyframes flashFade { from { opacity: 1; } to { opacity: 0; } }
 
   .pinBoxes { position: relative; display: flex; gap: 8px; margin-top: 10px; }
@@ -598,6 +598,15 @@
             <button class="primaryBtn" id="applyScheduleBtn">Apply — Replace Live Schedule Tab</button>
           </div>
         </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="sectionLabel">PRINT BADGE CARDS</div>
+          <div style="color:#7C8AA8; font-size:var(--text-sm); margin-bottom:12px;">Generates a printable sheet of name + QR code cards, sized to cut apart — opens right in the browser, prints with Ctrl/Cmd+P, nothing to install.</div>
+          <input id="badgePrintSection" placeholder="Section (optional — leave blank for everyone)" style="width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#fff; margin-bottom:10px;">
+          <button class="primaryBtn" id="loadBadgePrintBtn">Load &amp; Preview</button>
+          <div id="badgePrintMeta" style="margin-top:10px; color:#7C8AA8; font-size:var(--text-sm); display:none;"></div>
+          <button class="primaryBtn" id="printBadgesBtn" style="display:none; margin-top:10px; background:#022C66;">Print This Sheet</button>
+        </div>
       </div>
 
       <!-- ---- STUDENT SNAPSHOT MODAL ---- -->
@@ -1063,7 +1072,6 @@ function updateConfirmEnabled() {
 const video = document.getElementById('video'), canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const camStatus = document.getElementById('camStatus');
-let lastDecoded = '', lastDecodedAt = 0;
 
 let kioskStream = null, attStream = null, tripStream = null;
 
@@ -1137,31 +1145,55 @@ function matchAspectRatio(videoEl, wrapId) {
   }
 }
 
-async function tick() {
-  if (video.readyState === video.HAVE_ENOUGH_DATA && Date.now() > cooldownUntil) {
-    const data = await scanVideoFrame(video, canvas, ctx);
-    if (data) {
-      const now = Date.now();
-      if (data !== lastDecoded || now - lastDecodedAt > 3000) {
-        lastDecoded = data; lastDecodedAt = now;
-        flashCaptured();
-        identifyByName(data);
+// One shared scan loop, used by every scanner (Kiosk, Schoolwide, Field
+// Trips) instead of three separately-maintained copies. Any future fix or
+// improvement here — debounce behavior, flash timing, whatever — now
+// automatically applies everywhere at once, which is exactly the
+// guarantee three duplicated loops couldn't give: the flash-on-detect fix
+// only reached the Kiosk at first specifically because it lived in its
+// own separate copy of this same logic.
+function createScannerLoop({ video, canvas, ctx, flashTargetId, debounceMs, onDetect, shouldRun, onFlash }) {
+  let lastDecoded = '', lastDecodedAt = 0;
+  async function loopTick() {
+    const ready = video.readyState === video.HAVE_ENOUGH_DATA && (!shouldRun || shouldRun());
+    if (ready) {
+      const data = await scanVideoFrame(video, canvas, ctx);
+      if (data) {
+        const now = Date.now();
+        if (data !== lastDecoded || now - lastDecodedAt > debounceMs) {
+          lastDecoded = data; lastDecodedAt = now;
+          if (flashTargetId) flashElement(flashTargetId);
+          if (onFlash) onFlash();
+          onDetect(data);
+        }
       }
     }
+    requestAnimationFrame(loopTick);
   }
-  requestAnimationFrame(tick);
+  return loopTick;
 }
 
+const tick = createScannerLoop({
+  video, canvas, ctx, flashTargetId: 'videoWrap', debounceMs: 3000,
+  shouldRun: () => Date.now() > cooldownUntil,
+  onFlash: () => { camStatus.textContent = '✓ Captured — looking up…'; camStatus.className = 'statusPill captured'; },
+  onDetect: identifyByName
+});
+
 // Instant, client-side-only feedback the moment a code is decoded — before
-// any network call happens. This is the fix for "stand there wondering if
-// it worked": the visual confirmation is now decoupled from how long the
-// lookup takes, so there's no ambiguous holding-it-up-longer-than-needed gap.
-function flashCaptured() {
-  const wrap = document.getElementById('videoWrap');
-  wrap.classList.add('flash');
-  setTimeout(() => wrap.classList.remove('flash'), 400);
-  camStatus.textContent = '✓ Captured — looking up…';
-  camStatus.className = 'statusPill captured';
+// any network call happens. Used by every scanner via createScannerLoop's
+// flashTargetId — this is the fix for "stand there wondering if it
+// worked": the visual confirmation is now decoupled from how long the
+// lookup takes, so there's no ambiguous holding-it-up-longer-than-needed
+// gap, on any scanner, not just one.
+// The flash alone answers
+// "did it see it" the instant a code decodes, well before the network
+// round-trip that used to be the only feedback at all.
+function flashElement(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 400);
 }
 
 const kioskPinBoxes = wirePinBoxes('pinBoxes', pin => { identifyByPin(pin); kioskPinBoxes.clear(); });
@@ -1559,7 +1591,11 @@ async function refreshAttStats() { const res = await apiGet('getAttendanceToday'
 
 const videoAtt = document.getElementById('videoAtt'), canvasAtt = document.getElementById('canvasAtt');
 const ctxAtt = canvasAtt.getContext('2d', { willReadFrequently: true });
-let lastDecodedAtt = '', lastDecodedAttAt = 0;
+const tickAtt = createScannerLoop({
+  video: videoAtt, canvas: canvasAtt, ctx: ctxAtt,
+  flashTargetId: 'videoWrapAttInner', debounceMs: 2000,
+  onDetect: handleAttendanceName
+});
 function startAttCamera() {
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', frameRate: { ideal: 15, max: 24 } } })
     .then(stream => {
@@ -1570,16 +1606,6 @@ function startAttCamera() {
       document.getElementById('camStatusAtt').textContent = 'Camera ready'; document.getElementById('camStatusAtt').className = 'statusPill ok'; requestAnimationFrame(tickAtt);
     })
     .catch(err => { document.getElementById('camStatusAtt').textContent = 'Camera failed: ' + err.name; document.getElementById('camStatusAtt').className = 'statusPill err'; });
-}
-async function tickAtt() {
-  if (videoAtt.readyState === videoAtt.HAVE_ENOUGH_DATA) {
-    const data = await scanVideoFrame(videoAtt, canvasAtt, ctxAtt);
-    if (data) {
-      const now = Date.now();
-      if (data !== lastDecodedAtt || now - lastDecodedAttAt > 2000) { lastDecodedAtt = data; lastDecodedAttAt = now; handleAttendanceName(data); }
-    }
-  }
-  requestAnimationFrame(tickAtt);
 }
 // Deliberately minimal: one API call, one toast, immediately ready for the
 // next kid — no confirmation step, since speed through the line is the
@@ -1672,7 +1698,12 @@ function toggleTripCamera() {
 }
 const videoTrip = document.getElementById('videoTrip'), canvasTrip = document.getElementById('canvasTrip');
 const ctxTrip = canvasTrip.getContext('2d', { willReadFrequently: true });
-let lastDecodedTrip = '', lastDecodedTripAt = 0;
+const tickTrip = createScannerLoop({
+  video: videoTrip, canvas: canvasTrip, ctx: ctxTrip,
+  flashTargetId: 'videoWrapTripInner', debounceMs: 3000,
+  shouldRun: () => currentTripId && currentPhase,
+  onDetect: handleTripScan
+});
 function startTripCamera() {
   tripCameraStarted = true;
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', frameRate: { ideal: 15, max: 24 } } })
@@ -1683,16 +1714,6 @@ function startTripCamera() {
       requestAnimationFrame(tickTrip);
     })
     .catch(err => showToast('Camera failed', err.name, false));
-}
-async function tickTrip() {
-  if (videoTrip.readyState === videoTrip.HAVE_ENOUGH_DATA && currentTripId && currentPhase) {
-    const data = await scanVideoFrame(videoTrip, canvasTrip, ctxTrip);
-    if (data) {
-      const now = Date.now();
-      if (data !== lastDecodedTrip || now - lastDecodedTripAt > 3000) { lastDecodedTrip = data; lastDecodedTripAt = now; handleTripScan(data); }
-    }
-  }
-  requestAnimationFrame(tickTrip);
 }
 async function handleTripScan(name) {
   const res = await apiPost({ action: 'recordFieldTripScan', pin: staffPin, tripId: currentTripId, name, phase: currentPhase });
@@ -1758,6 +1779,57 @@ async function refreshImportFreshness() {
   document.getElementById('lastRosterImportText').textContent = formatFreshness(res.lastRosterImport);
   document.getElementById('lastScheduleImportText').textContent = formatFreshness(res.lastScheduleImport);
 }
+
+// ---- PRINT BADGE CARDS ----
+let badgePrintStudents = [];
+document.getElementById('loadBadgePrintBtn').addEventListener('click', async () => {
+  const section = document.getElementById('badgePrintSection').value.trim();
+  const res = await apiGet('getBadgePrintData', section ? { pin: adminPin, section } : { pin: adminPin });
+  badgePrintStudents = res.students || [];
+  document.getElementById('badgePrintMeta').style.display = 'block';
+  document.getElementById('badgePrintMeta').textContent = badgePrintStudents.length + ' student card(s) ready' + (section ? ' for section ' + section : '') + '.';
+  document.getElementById('printBadgesBtn').style.display = badgePrintStudents.length > 0 ? 'inline-block' : 'none';
+});
+
+document.getElementById('printBadgesBtn').addEventListener('click', () => {
+  if (badgePrintStudents.length === 0) return;
+  // A separate, self-contained window with its own plain print stylesheet
+  // — deliberately not trying to print the dark app theme itself, which
+  // would waste ink and fight the browser's print rendering. Opens with
+  // the browser's native print dialog; nothing to install, works the
+  // same on any device.
+  const cardsHtml = badgePrintStudents.map(s => `
+    <div class="badgeCard">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(s.name)}" alt="QR">
+      <div class="badgeName">${s.name}</div>
+    </div>`).join('');
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`<!DOCTYPE html>
+<html><head><title>SANY Hall Pass — Badge Cards</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; }
+  .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.15in; }
+  .badgeCard {
+    width: 2.5in; height: 1.6in;
+    border: 1px dashed #999; border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 6px; page-break-inside: avoid;
+  }
+  .badgeCard img { width: 1in; height: 1in; }
+  .badgeName { font-size: 11px; font-weight: 700; text-align: center; margin-top: 4px; line-height: 1.2; }
+  @media print {
+    body { padding: 0.25in; }
+    .badgeCard { border-style: solid; border-color: #ccc; }
+  }
+</style>
+</head><body>
+<div class="sheet">${cardsHtml}</div>
+</body></html>`);
+  printWindow.document.close();
+  printWindow.onload = () => printWindow.print();
+});
 
 // ---- ANALYTICS ----
 Chart.defaults.color = '#9AAAC9';
