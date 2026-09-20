@@ -9,6 +9,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230A1B33%22/><path d=%22M0 100 L100 0 L100 40 L40 100 Z%22 fill=%22%238F0018%22/><text x=%2250%22 y=%2266%22 font-family=%22sans-serif%22 font-weight=%22900%22 font-size=%2244%22 fill=%22%23fff%22 text-anchor=%22middle%22>S</text></svg>">
 <title>SANY Hall Pass</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -51,12 +52,6 @@
      loaded reads as "confirmed zero," not "still loading." This class
      shows a neutral dash instead until the first real fetch completes. */
   .statBox.loading .n { color: #3A4560; }
-
-  /* Colorblind-friendly mode (toggled in Settings > General): adds an icon
-     alongside every color-coded status, since present/late/elsewhere/
-     absent and similar states are color-only otherwise — a real
-     usability gap for colorblind staff, not just a nice-to-have. */
-  body.colorblind-mode .statusIcon { display: inline-flex !important; }
 
   /* ---- Top nav ---- */
   header { position: sticky; top: 0; z-index: 20; background: #0A1B33; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 60px; gap: 10px; position: relative; }
@@ -170,7 +165,7 @@
   </button>
 </header>
 
-<div id="settingsPinGate" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;">
+<div id="settingsPinGate" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:150;padding:20px;">
   <div class="modalCard">
     <h3>Admin PIN required</h3>
     <div class="pinBoxes" id="pinBoxesSettingsGate" style="max-width:220px; margin:16px auto;">
@@ -189,19 +184,7 @@
     </div>
 
     <div class="sectionLabel" style="margin-top:6px;">GENERAL — THIS DEVICE ONLY</div>
-    <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; cursor:pointer; font-size:var(--text-base); font-weight:600;">
-      Enhanced status indicators
-      <input type="checkbox" id="prefColorblind" style="width:20px; height:20px;">
-    </label>
-    <div style="color:#7C8AA8; font-size:var(--text-xs); margin:-6px 0 10px;">Adds an icon alongside every color-coded status (present, absent, etc.) for easier reading regardless of color vision.</div>
-
-    <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; cursor:pointer; font-size:var(--text-base); font-weight:600;">
-      Vibrate on successful scan
-      <input type="checkbox" id="prefVibration" style="width:20px; height:20px;">
-    </label>
-    <div style="color:#7C8AA8; font-size:var(--text-xs); margin:-6px 0 16px;">Phones/tablets only — a brief buzz alongside the visual flash, useful in a noisy hallway.</div>
-
-    <button class="ghostBtn" id="logOutDeviceBtn" style="background:rgba(255,255,255,0.06); color:#fff; border-radius:10px; padding:11px;">Log out this device (clear saved staff/admin PINs)</button>
+    <button class="ghostBtn" id="logOutDeviceBtn" style="background:rgba(255,255,255,0.06); color:#fff; border-radius:10px; padding:11px; margin-bottom:16px;">Log out this device (clear saved staff/admin PINs)</button>
 
     <div style="border-top:1px solid rgba(255,255,255,0.08); margin:20px 0 16px;"></div>
 
@@ -221,6 +204,7 @@
     </div>
   </div>
 </div>
+
 
 <div id="deviceSetupGate" style="position:fixed; inset:0; background:radial-gradient(circle at 20% 10%, rgba(143,0,24,0.15), transparent 55%), radial-gradient(circle at 80% 90%, rgba(2,44,102,0.25), transparent 55%), #0A1B33; display:none; align-items:center; justify-content:center; z-index:200; padding:20px;">
   <div class="modalCard" style="max-width:420px; text-align:center;">
@@ -431,6 +415,7 @@
         <button class="attSubTab" data-adminsub="occupancy">Occupancy</button>
         <button class="attSubTab" data-adminsub="encounters">Encounter Prevention</button>
         <button class="attSubTab" data-adminsub="insights">Insights</button>
+        <button class="attSubTab" data-adminsub="analytics">Analytics</button>
         <button class="attSubTab" data-adminsub="notifications">Notifications</button>
         <button class="attSubTab" data-adminsub="dataimport">Data Import</button>
       </div>
@@ -508,6 +493,46 @@
             <div class="sectionLabel">PATTERN FLAGS</div>
             <div id="coOccurrenceList"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- ---- ANALYTICS ---- -->
+      <div class="adminSubView" id="adminSub-analytics" style="display:none;">
+        <div id="analyticsInsights" class="card" style="margin-bottom:16px; border-color:rgba(2,44,102,0.5); background:rgba(2,44,102,0.1);">
+          <div class="sectionLabel">WHAT THE DATA IS TELLING YOU</div>
+          <div id="analyticsInsightsList" style="font-size:var(--text-base); line-height:1.7;"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sectionLabel">PASSES PER DAY · LAST 30 DAYS</div>
+          <div style="position:relative; height:220px;"><canvas id="chartDaily"></canvas></div>
+        </div>
+
+        <div class="grid2" style="margin-bottom:16px;">
+          <div class="card">
+            <div class="sectionLabel">BY REASON · LAST 30 DAYS</div>
+            <div style="position:relative; height:220px;"><canvas id="chartReason"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="sectionLabel">BY HOUR OF DAY · LAST 30 DAYS</div>
+            <div style="position:relative; height:220px;"><canvas id="chartHour"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid2" style="margin-bottom:16px;">
+          <div class="card">
+            <div class="sectionLabel">BY GRADE · LAST 30 DAYS</div>
+            <div style="position:relative; height:220px;"><canvas id="chartGrade"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="sectionLabel">AVG PASS DURATION · LAST 14 DAYS</div>
+            <div style="position:relative; height:220px;"><canvas id="chartDuration"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sectionLabel">TOP 10 ROOMS BY PASS VOLUME · LAST 30 DAYS</div>
+          <div id="topTeachersList"></div>
         </div>
       </div>
 
@@ -656,7 +681,23 @@ document.getElementById('closeSettingsBtn').addEventListener('click', () => {
 document.getElementById('settingsModal').addEventListener('click', (e) => {
   if (e.target.id === 'settingsModal') e.target.classList.remove('show');
 });
-document.getElementById('adminSettingsLocked').style.display = 'block';
+
+// Admin Settings remembers this device the same way the main Admin tab
+// already does — reusing the same saved PIN rather than asking again
+// every single time the gear is opened. "Log out this device" (below)
+// clears it, which correctly re-locks this too.
+function checkAdminSettingsUnlockState() {
+  const saved = localStorage.getItem('hallpass_admin_pin');
+  if (saved) {
+    document.getElementById('adminSettingsLocked').style.display = 'none';
+    document.getElementById('adminSettingsUnlocked').style.display = 'block';
+  } else {
+    document.getElementById('adminSettingsLocked').style.display = 'block';
+    document.getElementById('adminSettingsUnlocked').style.display = 'none';
+  }
+}
+checkAdminSettingsUnlockState();
+
 document.getElementById('unlockAdminSettingsBtn').addEventListener('click', () => {
   settingsGateBoxes.clear();
   document.getElementById('settingsPinError').style.display = 'none';
@@ -665,6 +706,7 @@ document.getElementById('unlockAdminSettingsBtn').addEventListener('click', () =
 const settingsGateBoxes = wirePinBoxes('pinBoxesSettingsGate', async (pin) => {
   const res = await apiGet('checkAdminPin', { pin });
   if (res.valid) {
+    localStorage.setItem('hallpass_admin_pin', pin); // remembers this device — same value the Admin tab itself uses
     document.getElementById('settingsPinGate').style.display = 'none';
     document.getElementById('adminSettingsLocked').style.display = 'none';
     document.getElementById('adminSettingsUnlocked').style.display = 'block';
@@ -679,23 +721,6 @@ document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   document.getElementById('settingsModal').classList.remove('show');
 });
 
-// ---- General Settings: colorblind mode + vibration, plain localStorage prefs ----
-const prefColorblind = document.getElementById('prefColorblind');
-const prefVibration = document.getElementById('prefVibration');
-prefColorblind.checked = localStorage.getItem('hallpass_pref_colorblind') === '1';
-prefVibration.checked = localStorage.getItem('hallpass_pref_vibration') === '1';
-document.body.classList.toggle('colorblind-mode', prefColorblind.checked);
-prefColorblind.addEventListener('change', () => {
-  localStorage.setItem('hallpass_pref_colorblind', prefColorblind.checked ? '1' : '0');
-  document.body.classList.toggle('colorblind-mode', prefColorblind.checked);
-});
-prefVibration.addEventListener('change', () => {
-  localStorage.setItem('hallpass_pref_vibration', prefVibration.checked ? '1' : '0');
-});
-function vibrateIfEnabled() {
-  if (localStorage.getItem('hallpass_pref_vibration') === '1' && navigator.vibrate) navigator.vibrate(60);
-}
-
 document.getElementById('logOutDeviceBtn').addEventListener('click', () => {
   if (!confirm('This clears the saved Staff, Admin, and Hall Monitor PINs on this device (not the setup key or your assigned room). Continue?')) return;
   localStorage.removeItem('hallpass_staff_pin');
@@ -703,7 +728,6 @@ document.getElementById('logOutDeviceBtn').addEventListener('click', () => {
   localStorage.removeItem('hallpass_hallmonitor_pin');
   location.reload();
 });
-
 
 function api() { return apiUrlInput.value.trim(); }
 function apiKey() { return apiKeyInput.value.trim(); }
@@ -1056,7 +1080,6 @@ async function tick() {
 // it worked": the visual confirmation is now decoupled from how long the
 // lookup takes, so there's no ambiguous holding-it-up-longer-than-needed gap.
 function flashCaptured() {
-  vibrateIfEnabled();
   const wrap = document.getElementById('videoWrap');
   wrap.classList.add('flash');
   setTimeout(() => wrap.classList.remove('flash'), 400);
@@ -1357,7 +1380,7 @@ async function refreshClassAttendance() {
       <div class="avatar mono">${initials(s.name)}</div>
       <div style="flex:1;"><div style="font-weight:700;">${s.name}</div>${s.detail ? `<div class="whoMeta">${s.detail}</div>` : ''}</div>
       <div style="font-weight:700; font-size:var(--text-sm); color:${m.color}; display:flex; align-items:center; gap:5px;">
-        <span class="statusIcon" style="display:none;">${m.icon}</span>${m.label}
+        ${m.label}
       </div>
       ${s.state !== 'present' ? `<button class="markPresentBtn" data-name="${s.name}" style="margin-left:10px; padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#C7CEE0; font-size:11px; cursor:pointer;">Mark present</button>` : ''}
     </div>`;
@@ -1440,7 +1463,6 @@ async function tickAtt() {
 // next kid — no confirmation step, since speed through the line is the
 // entire point of this mode.
 async function handleAttendanceName(name) {
-  vibrateIfEnabled();
   const res = await apiPost({ action: 'bagCheckScan', pin: staffPin, name });
   if (res.success) showToast(res.name, 'Checked in', true);
   else if (res.alreadyIn) showToast(res.name, 'Already checked in', true);
@@ -1577,6 +1599,7 @@ document.querySelectorAll('[data-adminsub]').forEach(btn => {
     document.querySelectorAll('.adminSubView').forEach(v => v.style.display = 'none');
     document.getElementById('adminSub-' + btn.dataset.adminsub).style.display = 'block';
     if (btn.dataset.adminsub === 'dataimport') refreshImportFreshness();
+    if (btn.dataset.adminsub === 'analytics') refreshAnalytics();
   });
 });
 function formatFreshness(iso) {
@@ -1590,6 +1613,80 @@ async function refreshImportFreshness() {
   const res = await apiGet('getImportFreshness', { pin: adminPin });
   document.getElementById('lastRosterImportText').textContent = formatFreshness(res.lastRosterImport);
   document.getElementById('lastScheduleImportText').textContent = formatFreshness(res.lastScheduleImport);
+}
+
+// ---- ANALYTICS ----
+Chart.defaults.color = '#9AAAC9';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+Chart.defaults.font.family = "'Work Sans', system-ui, sans-serif";
+const chartInstances = {};
+function renderChart(canvasId, config) {
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  chartInstances[canvasId] = new Chart(document.getElementById(canvasId), config);
+}
+
+let analyticsLoaded = false;
+async function refreshAnalytics() {
+  const res = await apiGet('getAnalyticsData', { pin: adminPin });
+
+  document.getElementById('analyticsInsightsList').innerHTML = (res.insights || []).map(i => `<div style="margin-bottom:8px;">💡 ${i}</div>`).join('') || '<div class="whoMeta">Not enough data yet for meaningful insights — check back after a couple weeks of real usage.</div>';
+
+  renderChart('chartDaily', {
+    type: 'line',
+    data: {
+      labels: res.dailySeries.map(d => d.date.slice(5)),
+      datasets: [{ data: res.dailySeries.map(d => d.count), borderColor: '#8F0018', backgroundColor: 'rgba(143,0,24,0.15)', fill: true, tension: 0.3, pointRadius: 0 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  const reasonColors = ['#8F0018', '#022C66', '#4ADE80', '#F5B942', '#60A5FA', '#B8324A', '#7C8AA8', '#3A4560'];
+  renderChart('chartReason', {
+    type: 'bar',
+    data: {
+      labels: res.reasonBreakdown.map(r => r.key),
+      datasets: [{ data: res.reasonBreakdown.map(r => r.count), backgroundColor: res.reasonBreakdown.map((_, i) => reasonColors[i % reasonColors.length]) }]
+    },
+    options: { plugins: { legend: { display: false } }, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  renderChart('chartHour', {
+    type: 'bar',
+    data: {
+      labels: res.hourBreakdown.map(h => h.hour === 0 ? '12a' : h.hour < 12 ? h.hour + 'a' : h.hour === 12 ? '12p' : (h.hour - 12) + 'p'),
+      datasets: [{ data: res.hourBreakdown.map(h => h.count), backgroundColor: '#022C66' }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  renderChart('chartGrade', {
+    type: 'bar',
+    data: {
+      labels: res.gradeBreakdown.map(g => 'Grade ' + g.key),
+      datasets: [{ data: res.gradeBreakdown.map(g => g.count), backgroundColor: '#8F0018' }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  renderChart('chartDuration', {
+    type: 'line',
+    data: {
+      labels: res.avgDurationSeries.map(d => d.date.slice(5)),
+      datasets: [{ data: res.avgDurationSeries.map(d => d.avgMin), borderColor: '#F5B942', backgroundColor: 'rgba(245,158,11,0.15)', fill: true, tension: 0.3, spanGaps: true, pointRadius: 0 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'minutes' } } } }
+  });
+
+  const maxTeacherCount = Math.max(1, ...res.topTeachers.map(t => t.count));
+  document.getElementById('topTeachersList').innerHTML = res.topTeachers.map(t => `
+    <div style="margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; font-size:var(--text-sm); margin-bottom:4px;">
+        <span>${t.key}</span><span class="mono">${t.count}</span>
+      </div>
+      <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+        <div style="height:100%; width:${(t.count / maxTeacherCount) * 100}%; background:linear-gradient(90deg, var(--accent), var(--brand-blue));"></div>
+      </div>
+    </div>`).join('') || '<div class="whoMeta">No data yet.</div>';
 }
 
 function renderAdminSummary(d) {
@@ -1788,7 +1885,7 @@ async function openSectionRoster(section) {
       <div class="avatar mono">${initials(s.name)}</div>
       <div style="flex:1;"><div style="font-weight:700;">${s.name}</div>${s.detail ? `<div class="whoMeta">${s.detail}</div>` : ''}</div>
       <div style="font-weight:700; font-size:var(--text-sm); color:${m.color}; display:flex; align-items:center; gap:5px;">
-        <span class="statusIcon" style="display:none;">${m.icon}</span>${m.label}
+        ${m.label}
       </div>
     </div>`;
   }).join('');
