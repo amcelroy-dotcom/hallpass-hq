@@ -352,21 +352,28 @@
 
       <!-- ---- SCHOOLWIDE (bag-check) ATTENDANCE ---- -->
       <div class="attSubView" id="attSub-schoolwide" style="display:none;">
-        <div class="statRow">
+        <div class="statRow" style="margin-bottom:14px;">
           <div class="statBox"><div class="n mono" id="presentCount">–</div><div class="l">PRESENT</div></div>
           <div class="statBox"><div class="n mono" id="tardyCount">–</div><div class="l">TARDY</div></div>
         </div>
-        <div class="card">
-          <div class="sectionLabel">FAST SCAN — WALK-THROUGH LINE</div>
-          <div id="videoWrapAttInner" style="position:relative; width:100%; aspect-ratio:4/3; background:#061224; border-radius:16px; overflow:hidden; margin-bottom:14px;">
-            <video id="videoAtt" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
-            <canvas id="canvasAtt" style="display:none;"></canvas>
+        <div class="grid2" style="align-items:start;">
+          <div class="card">
+            <div class="sectionLabel">FAST SCAN</div>
+            <div id="videoWrapAttInner" style="position:relative; width:100%; max-width:200px; aspect-ratio:4/3; background:#061224; border-radius:14px; overflow:hidden; margin:0 auto 10px;">
+              <video id="videoAtt" autoplay playsinline muted style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"></video>
+              <canvas id="canvasAtt" style="display:none;"></canvas>
+            </div>
+            <div style="text-align:center;"><span class="statusPill" id="camStatusAtt">Requesting camera…</span></div>
+            <div style="margin:12px 0 6px; color:#7C8AA8; font-size:var(--text-xs); text-align:center;">— or type the 5-digit lunch PIN —</div>
+            <div class="pinBoxes" id="pinBoxesAtt">
+              <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
+              <input class="pinRealInput" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+            </div>
           </div>
-          <span class="statusPill" id="camStatusAtt">Requesting camera…</span>
-          <div style="margin:14px 0 6px; color:#7C8AA8; font-size:13px;">— or type the 5-digit lunch PIN —</div>
-          <div class="pinBoxes" id="pinBoxesAtt">
-            <div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div><div class="pinCell"></div>
-            <input class="pinRealInput" maxlength="5" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          <div class="card">
+            <div class="sectionLabel">RECENTLY CHECKED IN</div>
+            <div id="recentCheckinsList" style="max-height:340px; overflow-y:auto;"></div>
+            <div id="recentCheckinsEmpty" style="text-align:center; color:#5B6A87; padding:20px; font-size:var(--text-sm);">Nobody's scanned in yet.</div>
           </div>
         </div>
       </div>
@@ -1506,11 +1513,33 @@ async function tickAtt() {
 // Deliberately minimal: one API call, one toast, immediately ready for the
 // next kid — no confirmation step, since speed through the line is the
 // entire point of this mode.
+// Session-local feed of who's come through this device — not authoritative
+// data (that's the sheet), just a visual confirmation trail so staff
+// running the line can glance back and see who scanned, since a toast
+// disappears after a few seconds and hundreds of kids move through fast.
+let recentCheckins = [];
+function renderRecentCheckins() {
+  const listEl = document.getElementById('recentCheckinsList'), emptyEl = document.getElementById('recentCheckinsEmpty');
+  if (recentCheckins.length === 0) { listEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = recentCheckins.map(c => `
+    <div class="whoRow" style="padding:9px 12px;">
+      <div class="avatar mono" style="width:28px; height:28px; font-size:10px; background:${c.ok ? '#022C66' : '#8F0018'};">${initials(c.name)}</div>
+      <div style="flex:1; font-size:var(--text-sm); font-weight:600;">${c.name}</div>
+      <div class="whoMeta">${c.label} · ${c.time}</div>
+    </div>`).join('');
+}
+function pushRecentCheckin(name, label, ok) {
+  recentCheckins.unshift({ name, label, ok, time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) });
+  if (recentCheckins.length > 40) recentCheckins.length = 40;
+  renderRecentCheckins();
+}
+
 async function handleAttendanceName(name) {
   const res = await apiPost({ action: 'bagCheckScan', pin: staffPin, name });
-  if (res.success) showToast(res.name, 'Checked in', true);
-  else if (res.alreadyIn) showToast(res.name, 'Already checked in', true);
-  else showToast('No match', res.error || 'Unknown error', false);
+  if (res.success) { showToast(res.name, 'Checked in', true); pushRecentCheckin(res.name, 'Checked in', true); }
+  else if (res.alreadyIn) { showToast(res.name, 'Already checked in', true); pushRecentCheckin(res.name, 'Already in', true); }
+  else { showToast('No match', res.error || 'Unknown error', false); pushRecentCheckin(name || '?', 'No match', false); }
   refreshAttStats();
 }
 const attPinBoxes = wirePinBoxes('pinBoxesAtt', async pin => {
